@@ -3,12 +3,12 @@ const STORAGE_KEY = 'primerKnownWords';
 // --- State ---
 let knownWords = new Map();     // word -> ISO timestamp
 let knownSet = new Set();       // fast membership lookup
-let currentAllWords = [];       // all words from last file drop (pre-filter)
+let currentAllWords = [];       // all unique words from last file drop (for re-priming)
+let currentFreq = [];           // {word, count}[] for the current file, sorted by count desc
 
 // --- DOM refs ---
 const dropZone = document.getElementById('dropZone');
 const fileInput = document.getElementById('fileInput');
-const dropStatus = document.getElementById('dropStatus');
 const knownCount = document.getElementById('knownCount');
 const newStat = document.getElementById('newStat');
 const newCount = document.getElementById('newCount');
@@ -105,7 +105,7 @@ function clearAllKnown() {
 
 function reprime() {
   if (currentAllWords.length > 0) {
-    filterAndRender(currentAllWords);
+    filterAndRender();
   } else {
     updatePrimerUI();
   }
@@ -121,7 +121,7 @@ function importKnownWords(text) {
     .map(w => w.normalize('NFC'));
 
   if (words.length === 0) {
-    showStatus('No words found in file.', 'error');
+    alert('No words found in file.');
     return;
   }
 
@@ -138,7 +138,6 @@ function importKnownWords(text) {
     saveKnownWords();
     renderStats();
   }
-  showStatus(`Imported ${words.length} words (${added} new, ${knownSet.size} total).`, 'success');
 
   reprime();
   renderLibrary();
@@ -146,11 +145,10 @@ function importKnownWords(text) {
 
 function exportKnownWords() {
   if (knownSet.size === 0) {
-    showStatus('No known words to export.', 'error');
+    alert('No known words to export.');
     return;
   }
   downloadTextFile([...knownSet].sort().join('\n'), 'known-words.txt');
-  showStatus('Known words exported.', 'success');
 }
 
 function downloadTextFile(text, filename) {
@@ -175,26 +173,49 @@ function processNewWordsFile(text) {
     .map(w => w.normalize('NFC'));
 
   if (words.length === 0) {
-    showStatus('File is empty or contains no valid words.', 'error');
+    alert('File is empty or contains no valid words.');
     return;
   }
 
-  currentAllWords = [...new Set(words)];
-  filterAndRender(currentAllWords);
+  // Build frequency map
+  const freq = new Map();
+  for (const w of words) {
+    freq.set(w, (freq.get(w) || 0) + 1);
+  }
+
+  // Store unique words for re-priming
+  currentAllWords = [...freq.keys()];
+
+  // Sort by frequency desc, keeping only unknown words
+  const entries = [...freq.entries()]
+    .filter(([word]) => !knownSet.has(word))
+    .sort((a, b) => b[1] - a[1])
+    .map(([word, count]) => ({ word, count }));
+
+  currentFreq = entries;
+  renderWordList(entries);
+  updatePrimerUI();
 }
 
-function filterAndRender(allWords) {
-  const newWords = allWords.filter(w => !knownSet.has(w));
-  renderWordList(newWords);
+function filterAndRender() {
+  // Re-filter currentAllWords through current known set, with frequency from currentFreq
+  const freqMap = new Map(currentFreq.map(e => [e.word, e.count]));
+  const entries = currentAllWords
+    .filter(w => !knownSet.has(w))
+    .map(word => ({ word, count: freqMap.get(word) || 1 }))
+    .sort((a, b) => b.count - a.count);
+
+  currentFreq = entries;
+  renderWordList(entries);
   updatePrimerUI();
 }
 
 // --- Rendering (Primer) ---
 
-function renderWordList(words) {
+function renderWordList(entries) {
   wordList.innerHTML = '';
 
-  if (words.length === 0) {
+  if (entries.length === 0) {
     wordSection.classList.add('hidden');
     return;
   }
@@ -202,14 +223,24 @@ function renderWordList(words) {
   wordSection.classList.remove('hidden');
   emptyState.classList.add('hidden');
 
-  for (const word of words) {
+  for (const { word, count } of entries) {
     const item = document.createElement('div');
     item.className = 'word-item';
     item.dataset.word = word;
 
+    const label = document.createElement('div');
+    label.className = 'word-label';
+
     const textSpan = document.createElement('span');
     textSpan.className = 'word-text';
     textSpan.textContent = word;
+
+    const freqBadge = document.createElement('span');
+    freqBadge.className = 'word-freq';
+    freqBadge.textContent = `×${count}`;
+
+    label.appendChild(textSpan);
+    label.appendChild(freqBadge);
 
     const actions = document.createElement('div');
     actions.className = 'word-actions';
@@ -220,13 +251,11 @@ function renderWordList(words) {
 
     addBtn.addEventListener('click', () => {
       if (knownSet.has(word)) {
-        // Undo: remove from known
         removeKnownWord(word);
         item.classList.remove('word-item--added');
         addBtn.className = 'btn btn-primary btn-add';
         addBtn.textContent = 'Add to Known';
       } else {
-        // Add to known
         addKnownWord(word);
         item.classList.add('word-item--added');
         addBtn.className = 'btn btn-undo-text';
@@ -236,7 +265,7 @@ function renderWordList(words) {
     });
 
     actions.appendChild(addBtn);
-    item.appendChild(textSpan);
+    item.appendChild(label);
     item.appendChild(actions);
     wordList.appendChild(item);
   }
@@ -367,18 +396,16 @@ fileInput.addEventListener('change', () => {
 
 function handleFile(file) {
   if (!file.name.endsWith('.txt')) {
-    showStatus('Please drop a .txt file.', 'error');
+    alert('Please drop a .txt file.');
     return;
   }
 
   const reader = new FileReader();
   reader.onload = (e) => {
-    const text = e.target.result;
-    processNewWordsFile(text);
-    showStatus(`Loaded ${currentAllWords.length} words from "${file.name}".`, 'success');
+    processNewWordsFile(e.target.result);
   };
   reader.onerror = () => {
-    showStatus('Error reading file.', 'error');
+    alert('Error reading file.');
   };
   reader.readAsText(file, 'UTF-8');
 }
@@ -412,16 +439,3 @@ libraryClearBtn.addEventListener('click', () => {
   clearAllKnown();
   closeLibrary();
 });
-
-// --- Helpers ---
-
-function showStatus(message, type) {
-  dropStatus.textContent = message;
-  dropStatus.className = 'status-message';
-  if (type) dropStatus.classList.add(type);
-  clearTimeout(window._statusTimeout);
-  window._statusTimeout = setTimeout(() => {
-    dropStatus.textContent = '';
-    dropStatus.className = 'status-message';
-  }, 4000);
-}

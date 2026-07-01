@@ -233,8 +233,7 @@ body {
 }
 
 .word-list {
-  max-height: 60vh;
-  overflow-y: auto;
+  /* flows naturally in page */
 }
 
 .word-item {
@@ -263,6 +262,13 @@ body {
   background: #e9ecef;
 }
 
+.word-label {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
 .word-text {
   font-size: 1.25rem;
   font-weight: 500;
@@ -274,6 +280,18 @@ body {
   align-items: center;
   gap: 0.5rem;
   flex-shrink: 0;
+}
+
+.word-freq {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  background: var(--bg);
+  padding: 0.15rem 0.45rem;
+  border-radius: 6px;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  min-width: 2.2em;
+  text-align: center;
 }
 
 .btn-add {
