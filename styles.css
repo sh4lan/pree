@@ -19,9 +19,10 @@
   --success: #2ec4b6;
   --success-bg: #d4f5f1;
   --drop-bg: #eef1ff;
-  --drop-border: #4361ee;
+  --added-bg: #f1f3f5;
   --radius: 12px;
   --radius-sm: 8px;
+  --overlay-bg: rgba(0,0,0,0.35);
 }
 
 html {
@@ -42,25 +43,9 @@ body {
   padding: 2rem 1rem;
 }
 
-header {
-  text-align: center;
-  margin-bottom: 2rem;
-}
-
-header h1 {
-  font-size: 2rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-}
-
-.subtitle {
-  color: var(--text-muted);
-  margin-top: 0.25rem;
-}
-
 /* Drop Zone */
 .drop-section {
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
 }
 
 .drop-zone {
@@ -124,30 +109,23 @@ header h1 {
   color: var(--danger);
 }
 
-/* Known Words Section */
-.known-section {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1rem 1.25rem;
-  margin-bottom: 1.5rem;
-}
-
-.known-header {
+/* Status Bar */
+.status-bar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
-.known-count {
-  font-size: 0.95rem;
-}
-
-.known-buttons {
-  display: flex;
   gap: 0.5rem;
+  padding: 0.6rem 0;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.stat {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.bar-spacer {
+  flex: 1;
 }
 
 /* Buttons */
@@ -158,7 +136,7 @@ header h1 {
   font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s, opacity 0.15s;
+  transition: background 0.15s, opacity 0.15s, color 0.15s;
   font-family: inherit;
 }
 
@@ -173,6 +151,11 @@ header h1 {
 
 .btn-primary:hover {
   background: var(--primary-hover);
+}
+
+.btn-primary:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .btn-secondary {
@@ -196,32 +179,57 @@ header h1 {
   color: #fff;
 }
 
+.btn-text {
+  background: none;
+  border: none;
+  color: var(--primary);
+  padding: 0.25rem 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  border-radius: 4px;
+}
+
+.btn-text:hover {
+  background: var(--drop-bg);
+}
+
+.btn-undo-text {
+  background: none;
+  border: none;
+  color: var(--danger);
+  padding: 0.45rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  border-radius: var(--radius-sm);
+}
+
+.btn-undo-text:hover {
+  background: var(--danger);
+  color: #fff;
+}
+
+.btn-close {
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--text-muted);
+  padding: 0.25rem 0.5rem;
+}
+
+.btn-close:hover {
+  color: var(--text);
+  background: var(--bg);
+}
+
 /* Word Section */
 .word-section {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   overflow: hidden;
-}
-
-.word-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 1rem 1.25rem;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg);
-}
-
-.word-header h2 {
-  font-size: 1rem;
-  font-weight: 600;
-}
-
-.word-counter {
-  font-size: 0.85rem;
-  color: var(--text-muted);
 }
 
 .word-list {
@@ -247,10 +255,12 @@ header h1 {
   background: var(--bg);
 }
 
-.word-item.known {
-  background: var(--success-bg);
-  text-decoration: line-through;
-  opacity: 0.7;
+.word-item--added {
+  background: var(--added-bg);
+}
+
+.word-item--added:hover {
+  background: #e9ecef;
 }
 
 .word-text {
@@ -261,6 +271,7 @@ header h1 {
 
 .word-actions {
   display: flex;
+  align-items: center;
   gap: 0.5rem;
   flex-shrink: 0;
 }
@@ -269,11 +280,11 @@ header h1 {
   white-space: nowrap;
 }
 
-.btn-added {
-  background: var(--success);
-  color: #fff;
-  pointer-events: none;
-  opacity: 0.8;
+/* Library word date */
+.word-date {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
 }
 
 /* Empty State */
@@ -283,9 +294,66 @@ header h1 {
   color: var(--text-muted);
 }
 
-/* Utility */
+/* Overlay */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.overlay-backdrop {
+  position: absolute;
+  inset: 0;
+  background: var(--overlay-bg);
+}
+
+.overlay-panel {
+  position: relative;
+  margin-top: 3rem;
+  width: 90%;
+  max-width: 600px;
+  max-height: 80vh;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.overlay-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.overlay-header h2 {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.overlay-actions {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  align-items: center;
+}
+
+.overlay-list {
+  max-height: none;
+  flex: 1;
+}
+
+/* Utility (after overlay so it overrides display: flex) */
 .hidden {
-  display: none;
+  display: none !important;
 }
 
 /* Scrollbar */
@@ -308,25 +376,17 @@ header h1 {
     padding: 1rem 0.75rem;
   }
 
-  header h1 {
-    font-size: 1.5rem;
-  }
-
   .drop-zone {
     padding: 1.5rem 0.75rem;
   }
 
-  .word-header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .known-header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
   .word-text {
     font-size: 1.1rem;
+  }
+
+  .overlay-panel {
+    margin-top: 1rem;
+    width: 95%;
+    max-height: 90vh;
   }
 }

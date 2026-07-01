@@ -1,80 +1,122 @@
 const STORAGE_KEY = 'primerKnownWords';
 
 // --- State ---
-let knownWords = new Set();
-let currentNewWords = [];   // words currently displayed (not yet known)
-let currentAllWords = [];   // all words from last file drop (including subsequently marked-known)
+let knownWords = new Map();     // word -> ISO timestamp
+let knownSet = new Set();       // fast membership lookup
+let currentAllWords = [];       // all words from last file drop (pre-filter)
 
 // --- DOM refs ---
 const dropZone = document.getElementById('dropZone');
 const fileInput = document.getElementById('fileInput');
 const dropStatus = document.getElementById('dropStatus');
 const knownCount = document.getElementById('knownCount');
-const importKnownBtn = document.getElementById('importKnownBtn');
-const exportKnownBtn = document.getElementById('exportKnownBtn');
-const clearKnownBtn = document.getElementById('clearKnownBtn');
+const newStat = document.getElementById('newStat');
+const newCount = document.getElementById('newCount');
+const knownFileBtn = document.getElementById('knownFileBtn');
 const knownFileInput = document.getElementById('knownFileInput');
 const wordSection = document.getElementById('wordSection');
 const wordList = document.getElementById('wordList');
-const wordCounter = document.getElementById('wordCounter');
-const markAllBtn = document.getElementById('markAllBtn');
 const emptyState = document.getElementById('emptyState');
+
+// Library overlay
+const openLibraryBtn = document.getElementById('openLibraryBtn');
+const closeLibraryBtn = document.getElementById('closeLibraryBtn');
+const libraryOverlay = document.getElementById('libraryOverlay');
+const libraryList = document.getElementById('libraryList');
+const libraryEmpty = document.getElementById('libraryEmpty');
+const markAllBtn = document.getElementById('markAllBtn');
+const libraryImportBtn = document.getElementById('libraryImportBtn');
+const libraryExportBtn = document.getElementById('libraryExportBtn');
+const libraryClearBtn = document.getElementById('libraryClearBtn');
+const libraryFileInput = document.getElementById('libraryFileInput');
 
 // --- Init ---
 loadKnownWords();
-renderKnownCount();
-updateEmptyState();
+renderStats();
+updatePrimerUI();
 
-// --- Known Words ---
+// --- Storage ---
 
 function loadKnownWords() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const arr = JSON.parse(raw);
-      knownWords = new Set(arr.map(w => w.trim()).filter(Boolean));
+    if (!raw) return;
+    const arr = JSON.parse(raw);
+    if (arr.length === 0) return;
+
+    knownWords = new Map();
+    knownSet = new Set();
+
+    if (typeof arr[0] === 'string') {
+      const now = new Date().toISOString();
+      for (const w of arr) {
+        const word = w.trim();
+        if (!word || knownSet.has(word)) continue;
+        knownSet.add(word);
+        knownWords.set(word, now);
+      }
+      saveKnownWords();
     } else {
-      knownWords = new Set();
+      for (const entry of arr) {
+        const word = entry.w?.trim();
+        if (!word || knownSet.has(word)) continue;
+        knownSet.add(word);
+        knownWords.set(word, entry.t || new Date().toISOString());
+      }
     }
   } catch {
-    knownWords = new Set();
+    knownWords = new Map();
+    knownSet = new Set();
   }
 }
 
 function saveKnownWords() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify([...knownWords].sort()));
+  const arr = [...knownWords.entries()]
+    .map(([w, t]) => ({ w, t }))
+    .sort((a, b) => a.w.localeCompare(b.w));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
 }
 
 function addKnownWord(word) {
   const cleaned = word.trim();
-  if (!cleaned) return false;
-  knownWords.add(cleaned);
+  if (!cleaned || knownSet.has(cleaned)) return false;
+  knownSet.add(cleaned);
+  knownWords.set(cleaned, new Date().toISOString());
   saveKnownWords();
-  renderKnownCount();
+  renderStats();
   return true;
 }
 
 function removeKnownWord(word) {
-  knownWords.delete(word.trim());
+  const cleaned = word.trim();
+  knownSet.delete(cleaned);
+  knownWords.delete(cleaned);
   saveKnownWords();
-  renderKnownCount();
+  renderStats();
 }
 
 function clearAllKnown() {
-  if (knownWords.size === 0) return;
-  if (!confirm(`Clear all ${knownWords.size} known words?`)) return;
+  if (knownSet.size === 0) return;
+  if (!confirm(`Clear all ${knownSet.size} known words?`)) return;
+  knownSet.clear();
   knownWords.clear();
   saveKnownWords();
-  renderKnownCount();
-  // Re-filter current display
-  if (currentAllWords.length > 0) {
-    filterAndRender(currentAllWords);
-  }
-  updateEmptyState();
+  renderStats();
+  reprime();
+  renderLibrary();
 }
 
+function reprime() {
+  if (currentAllWords.length > 0) {
+    filterAndRender(currentAllWords);
+  } else {
+    updatePrimerUI();
+  }
+}
+
+// --- Import/Export ---
+
 function importKnownWords(text) {
-  // Strip BOM if present
   text = text.replace(/^﻿/, '');
   const words = text.split(/\r?\n/)
     .map(w => w.trim())
@@ -86,28 +128,31 @@ function importKnownWords(text) {
     return;
   }
 
-  // Merge, don't replace
+  const now = new Date().toISOString();
+  let added = 0;
   for (const w of words) {
-    knownWords.add(w);
+    if (!knownSet.has(w)) {
+      knownSet.add(w);
+      knownWords.set(w, now);
+      added++;
+    }
   }
-  saveKnownWords();
-  renderKnownCount();
-  showStatus(`Imported ${words.length} known words (${knownWords.size} total).`, 'success');
+  if (added > 0) {
+    saveKnownWords();
+    renderStats();
+  }
+  showStatus(`Imported ${words.length} words (${added} new, ${knownSet.size} total).`, 'success');
 
-  // Re-filter current display
-  if (currentAllWords.length > 0) {
-    filterAndRender(currentAllWords);
-  }
-  updateEmptyState();
+  reprime();
+  renderLibrary();
 }
 
 function exportKnownWords() {
-  if (knownWords.size === 0) {
+  if (knownSet.size === 0) {
     showStatus('No known words to export.', 'error');
     return;
   }
-  const text = [...knownWords].sort().join('\n');
-  downloadTextFile(text, 'known-words.txt');
+  downloadTextFile([...knownSet].sort().join('\n'), 'known-words.txt');
   showStatus('Known words exported.', 'success');
 }
 
@@ -126,7 +171,6 @@ function downloadTextFile(text, filename) {
 // --- New Words Processing ---
 
 function processNewWordsFile(text) {
-  // Strip BOM
   text = text.replace(/^﻿/, '');
   const words = text.split(/\r?\n/)
     .map(w => w.trim())
@@ -138,24 +182,22 @@ function processNewWordsFile(text) {
     return;
   }
 
-  // Deduplicate within the file
   currentAllWords = [...new Set(words)];
   filterAndRender(currentAllWords);
 }
 
 function filterAndRender(allWords) {
-  // Filter out already-known words
-  currentNewWords = allWords.filter(w => !knownWords.has(w));
-  renderWordList(allWords);
-  updateEmptyState();
+  const newWords = allWords.filter(w => !knownSet.has(w));
+  renderWordList(newWords);
+  updatePrimerUI();
 }
 
-// --- Rendering ---
+// --- Rendering (Primer) ---
 
-function renderWordList(allWords) {
+function renderWordList(words) {
   wordList.innerHTML = '';
 
-  if (allWords.length === 0) {
+  if (words.length === 0) {
     wordSection.classList.add('hidden');
     return;
   }
@@ -163,18 +205,9 @@ function renderWordList(allWords) {
   wordSection.classList.remove('hidden');
   emptyState.classList.add('hidden');
 
-  // Update counter
-  const remaining = allWords.filter(w => !knownWords.has(w)).length;
-  wordCounter.textContent = `${remaining} / ${allWords.length} remaining`;
-
-  // Mark All button
-  markAllBtn.disabled = remaining === 0;
-
-  // Render each word
-  for (const word of allWords) {
-    const isKnown = knownWords.has(word);
+  for (const word of words) {
     const item = document.createElement('div');
-    item.className = `word-item${isKnown ? ' known' : ''}`;
+    item.className = 'word-item';
     item.dataset.word = word;
 
     const textSpan = document.createElement('span');
@@ -184,79 +217,132 @@ function renderWordList(allWords) {
     const actions = document.createElement('div');
     actions.className = 'word-actions';
 
-    // Add/Added button
     const addBtn = document.createElement('button');
-    if (isKnown) {
-      addBtn.className = 'btn btn-added';
-      addBtn.textContent = 'Known';
-    } else {
-      addBtn.className = 'btn btn-primary btn-add';
-      addBtn.textContent = 'Add to Known';
-      addBtn.addEventListener('click', () => {
-        addKnownWord(word);
-        item.classList.add('known');
-        addBtn.className = 'btn btn-added';
-        addBtn.textContent = 'Known';
-        updateCounter();
-        markAllBtn.disabled = allWords.every(w => knownWords.has(w));
-      });
-    }
+    addBtn.className = 'btn btn-primary btn-add';
+    addBtn.textContent = 'Add to Known';
 
-    // Remove from known (only for words that started this session as known)
-    if (isKnown && currentAllWords.includes(word)) {
-      const removeBtn = document.createElement('button');
-      removeBtn.className = 'btn btn-danger';
-      removeBtn.textContent = 'Remove';
-      removeBtn.style.fontSize = '0.75rem';
-      removeBtn.style.padding = '0.3rem 0.6rem';
-      removeBtn.addEventListener('click', () => {
+    addBtn.addEventListener('click', () => {
+      if (knownSet.has(word)) {
+        // Undo: remove from known
         removeKnownWord(word);
-        item.classList.remove('known');
-        item.querySelector('.btn-added')?.remove();
-        actions.innerHTML = '';
-        const newAddBtn = document.createElement('button');
-        newAddBtn.className = 'btn btn-primary btn-add';
-        newAddBtn.textContent = 'Add to Known';
-        newAddBtn.addEventListener('click', () => {
-          addKnownWord(word);
-          item.classList.add('known');
-          newAddBtn.className = 'btn btn-added';
-          newAddBtn.textContent = 'Known';
-          updateCounter();
-          markAllBtn.disabled = currentAllWords.every(w => knownWords.has(w));
-        });
-        actions.appendChild(newAddBtn);
-        updateCounter();
-        markAllBtn.disabled = currentAllWords.every(w => knownWords.has(w));
-      });
-      actions.appendChild(removeBtn);
-    }
+        item.classList.remove('word-item--added');
+        addBtn.className = 'btn btn-primary btn-add';
+        addBtn.textContent = 'Add to Known';
+        renderLibrary();
+      } else {
+        // Add to known
+        addKnownWord(word);
+        item.classList.add('word-item--added');
+        addBtn.className = 'btn btn-undo-text';
+        addBtn.textContent = 'Undo';
+      }
+      updateNewCount();
+    });
 
     actions.appendChild(addBtn);
     item.appendChild(textSpan);
     item.appendChild(actions);
     wordList.appendChild(item);
   }
+
+  updateNewCount();
 }
 
-function updateCounter() {
-  const remaining = currentAllWords.filter(w => !knownWords.has(w)).length;
-  wordCounter.textContent = `${remaining} / ${currentAllWords.length} remaining`;
+function updateNewCount() {
+  const remaining = wordList.querySelectorAll('.word-item:not(.word-item--added)').length;
+  newCount.textContent = remaining;
+  newStat.classList.toggle('hidden', wordList.children.length === 0);
 }
 
-function renderKnownCount() {
-  knownCount.textContent = knownWords.size;
+function renderStats() {
+  knownCount.textContent = knownSet.size;
 }
 
-function updateEmptyState() {
-  const hasWords = currentAllWords.length > 0;
+function updatePrimerUI() {
+  const hasWords = wordList.children.length > 0;
   wordSection.classList.toggle('hidden', !hasWords);
   emptyState.classList.toggle('hidden', hasWords);
+
+  const emptyMsg = emptyState.querySelector('p');
+  if (!hasWords && currentAllWords.length > 0) {
+    emptyMsg.textContent = 'All words from the file are already in your known list.';
+  } else {
+    emptyMsg.textContent = 'No new words to show. Drop a file above to get started.';
+  }
 }
 
-// --- Event Handlers ---
+// --- Library Overlay ---
 
-// Drop zone
+function openLibrary() {
+  renderLibrary();
+  libraryOverlay.classList.remove('hidden');
+}
+
+function closeLibrary() {
+  libraryOverlay.classList.add('hidden');
+}
+
+function renderLibrary() {
+  const entries = [...knownWords.entries()]
+    .map(([word, ts]) => ({ word, ts: new Date(ts) }))
+    .sort((a, b) => b.ts - a.ts);
+
+  libraryList.innerHTML = '';
+
+  if (entries.length === 0) {
+    libraryList.classList.add('hidden');
+    libraryEmpty.classList.remove('hidden');
+    return;
+  }
+
+  libraryList.classList.remove('hidden');
+  libraryEmpty.classList.add('hidden');
+
+  for (const { word, ts } of entries) {
+    const item = document.createElement('div');
+    item.className = 'word-item';
+
+    const textSpan = document.createElement('span');
+    textSpan.className = 'word-text';
+    textSpan.textContent = word;
+
+    const dateSpan = document.createElement('span');
+    dateSpan.className = 'word-date';
+    dateSpan.textContent = formatDate(ts);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'btn btn-danger';
+    removeBtn.textContent = 'Remove';
+    removeBtn.style.fontSize = '0.75rem';
+    removeBtn.style.padding = '0.3rem 0.6rem';
+    removeBtn.addEventListener('click', () => {
+      removeKnownWord(word);
+      renderLibrary();
+      reprime();
+    });
+
+    const actions = document.createElement('div');
+    actions.className = 'word-actions';
+    actions.appendChild(dateSpan);
+    actions.appendChild(removeBtn);
+
+    item.appendChild(textSpan);
+    item.appendChild(actions);
+    libraryList.appendChild(item);
+  }
+}
+
+function formatDate(date) {
+  const now = new Date();
+  const diff = now - date;
+  if (diff < 60000) return 'just now';
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+// --- Event Handlers (Drop Zone) ---
+
 dropZone.addEventListener('click', () => fileInput.click());
 
 dropZone.addEventListener('dragover', (e) => {
@@ -271,9 +357,8 @@ dropZone.addEventListener('dragleave', () => {
 dropZone.addEventListener('drop', (e) => {
   e.preventDefault();
   dropZone.classList.remove('drag-over');
-  const files = e.dataTransfer.files;
-  if (files.length > 0) {
-    handleFile(files[0]);
+  if (e.dataTransfer.files.length > 0) {
+    handleFile(e.dataTransfer.files[0]);
   }
 });
 
@@ -302,8 +387,9 @@ function handleFile(file) {
   reader.readAsText(file, 'UTF-8');
 }
 
-// Known words import/export
-importKnownBtn.addEventListener('click', () => knownFileInput.click());
+// --- Event Handlers (Status Bar) ---
+
+knownFileBtn.addEventListener('click', () => knownFileInput.click());
 
 knownFileInput.addEventListener('change', () => {
   if (knownFileInput.files.length > 0) {
@@ -314,19 +400,47 @@ knownFileInput.addEventListener('change', () => {
   }
 });
 
-exportKnownBtn.addEventListener('click', exportKnownWords);
+// --- Event Handlers (Library Overlay) ---
 
-clearKnownBtn.addEventListener('click', clearAllKnown);
+openLibraryBtn.addEventListener('click', openLibrary);
 
-// Mark All as Known
-markAllBtn.addEventListener('click', () => {
-  for (const word of currentAllWords) {
-    addKnownWord(word);
+closeLibraryBtn.addEventListener('click', closeLibrary);
+
+libraryOverlay.addEventListener('click', (e) => {
+  if (e.target === libraryOverlay || e.target.classList.contains('overlay-backdrop')) {
+    closeLibrary();
   }
-  // Re-render to update all items
-  renderWordList(currentAllWords);
-  updateEmptyState();
-  showStatus(`Marked all ${currentAllWords.length} words as known.`, 'success');
+});
+
+markAllBtn.addEventListener('click', () => {
+  // Mark all currently displayed primer words as known
+  const items = wordList.querySelectorAll('.word-item:not(.word-item--added)');
+  for (const item of items) {
+    const word = item.dataset.word;
+    if (word) addKnownWord(word);
+  }
+  reprime();
+  renderLibrary();
+  updateNewCount();
+  showStatus(`Marked all remaining words as known.`, 'success');
+});
+
+libraryImportBtn.addEventListener('click', () => libraryFileInput.click());
+
+libraryFileInput.addEventListener('change', () => {
+  if (libraryFileInput.files.length > 0) {
+    const reader = new FileReader();
+    reader.onload = (e) => importKnownWords(e.target.result);
+    reader.readAsText(libraryFileInput.files[0], 'UTF-8');
+    libraryFileInput.value = '';
+  }
+});
+
+libraryExportBtn.addEventListener('click', exportKnownWords);
+
+libraryClearBtn.addEventListener('click', () => {
+  clearAllKnown();
+  closeLibrary();
 });
 
 // --- Helpers ---
@@ -335,7 +449,6 @@ function showStatus(message, type) {
   dropStatus.textContent = message;
   dropStatus.className = 'status-message';
   if (type) dropStatus.classList.add(type);
-  // Clear after 4 seconds
   clearTimeout(window._statusTimeout);
   window._statusTimeout = setTimeout(() => {
     dropStatus.textContent = '';

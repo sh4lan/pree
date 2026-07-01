@@ -11,10 +11,6 @@
 </head>
 <body>
   <div class="app">
-    <header>
-      <h1>Word Primer</h1>
-      <p class="subtitle">Prime new vocabulary for better retention</p>
-    </header>
 
     <!-- Drop Zone -->
     <section class="drop-section">
@@ -33,28 +29,18 @@
       <p id="dropStatus" class="status-message"></p>
     </section>
 
-    <!-- Known Words Controls -->
-    <section class="known-section">
-      <div class="known-header">
-        <span class="known-count">Known words: <strong id="knownCount">0</strong></span>
-        <div class="known-buttons">
-          <button id="importKnownBtn" class="btn btn-secondary">Import</button>
-          <button id="exportKnownBtn" class="btn btn-secondary">Export</button>
-          <button id="clearKnownBtn" class="btn btn-danger">Clear All</button>
-        </div>
-      </div>
+    <!-- Status Bar -->
+    <section class="status-bar">
+      <span class="stat">Known: <strong id="knownCount">0</strong></span>
+      <span id="newStat" class="stat hidden">New: <strong id="newCount">0</strong></span>
+      <span class="bar-spacer"></span>
+      <button id="knownFileBtn" class="btn btn-text">Import...</button>
+      <button id="openLibraryBtn" class="btn btn-text">Manage...</button>
       <input type="file" id="knownFileInput" accept=".txt" hidden>
     </section>
 
     <!-- Word List -->
     <section id="wordSection" class="word-section hidden">
-      <div class="word-header">
-        <div>
-          <h2>New words</h2>
-          <span id="wordCounter" class="word-counter"></span>
-        </div>
-        <button id="markAllBtn" class="btn btn-primary">Mark All as Known</button>
-      </div>
       <div id="wordList" class="word-list"></div>
     </section>
 
@@ -62,6 +48,30 @@
     <section id="emptyState" class="empty-state hidden">
       <p>No new words to show. Drop a file above to get started.</p>
     </section>
+
+    <!-- Library Overlay -->
+    <div id="libraryOverlay" class="overlay hidden">
+      <div class="overlay-backdrop"></div>
+      <div class="overlay-panel">
+        <div class="overlay-header">
+          <h2>Known words</h2>
+          <button id="closeLibraryBtn" class="btn btn-text btn-close">&times;</button>
+        </div>
+        <div class="overlay-actions">
+          <button id="markAllBtn" class="btn btn-primary">Mark All as Known</button>
+          <span class="bar-spacer"></span>
+          <button id="libraryImportBtn" class="btn btn-secondary">Import</button>
+          <button id="libraryExportBtn" class="btn btn-secondary">Export</button>
+          <button id="libraryClearBtn" class="btn btn-danger">Clear All</button>
+          <input type="file" id="libraryFileInput" accept=".txt" hidden>
+        </div>
+        <div id="libraryList" class="word-list overlay-list"></div>
+        <div id="libraryEmpty" class="empty-state">
+          <p>No known words yet.</p>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <script src="app.js"></script>
