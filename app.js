@@ -398,33 +398,33 @@ function renderWordList(entries) {
     item.className = 'word-item';
     item.dataset.word = word;
 
-    const label = document.createElement('div');
-    label.className = 'word-label';
-
     const textSpan = document.createElement('span');
     textSpan.className = 'word-text';
     textSpan.textContent = word;
 
-    // Rank badge (from dictionary, if loaded)
-    let showRank = false;
-    let rankSpan = null;
-    if (dictMap) {
-      const rank = getDictRank(word);
-      if (rank != null) {
-        rankSpan = document.createElement('span');
-        rankSpan.className = 'word-rank';
-        rankSpan.textContent = `#${rank}`;
-        showRank = true;
-      }
+    // ~ freq badge next to word
+    const label = document.createElement('span');
+    label.className = 'word-label';
+    label.appendChild(textSpan);
+
+    if (count > 0) {
+      const freqBadge = document.createElement('span');
+      freqBadge.className = 'word-freq';
+      freqBadge.textContent = `×${count}`;
+      label.appendChild(freqBadge);
     }
 
-    const freqBadge = document.createElement('span');
-    freqBadge.className = 'word-freq';
-    freqBadge.textContent = `×${count}`;
+    // ~ rank badge on the right
+    const right = document.createElement('div');
+    right.className = 'word-right';
 
-    label.appendChild(textSpan);
-    if (showRank) label.appendChild(rankSpan);
-    label.appendChild(freqBadge);
+    const rankVal = dictMap ? getDictRank(word) : null;
+    if (rankVal != null) {
+      const rankSpan = document.createElement('span');
+      rankSpan.className = 'word-rank';
+      rankSpan.textContent = `#${rankVal}`;
+      right.appendChild(rankSpan);
+    }
 
     const actions = document.createElement('div');
     actions.className = 'word-actions';
@@ -449,8 +449,9 @@ function renderWordList(entries) {
     });
 
     actions.appendChild(addBtn);
+    right.appendChild(actions);
     item.appendChild(label);
-    item.appendChild(actions);
+    item.appendChild(right);
     wordList.appendChild(item);
   }
 
