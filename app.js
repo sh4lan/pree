@@ -1,4 +1,49 @@
 const STORAGE_KEY = 'primerKnownWords';
+const DB_NAME = 'WordPrimer';
+const DB_VERSION = 1;
+
+// --- IndexedDB helpers ---
+
+function dbOpen() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains('kv')) {
+        db.createObjectStore('kv');
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function dbGet(key) {
+  return dbOpen().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction('kv', 'readonly');
+    const req = tx.objectStore('kv').get(key);
+    req.onsuccess = () => { db.close(); resolve(req.result); };
+    req.onerror = () => { db.close(); reject(req.error); };
+  }));
+}
+
+function dbPut(key, value) {
+  return dbOpen().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction('kv', 'readwrite');
+    const req = tx.objectStore('kv').put(value, key);
+    req.onsuccess = () => { db.close(); resolve(); };
+    req.onerror = () => { db.close(); reject(req.error); };
+  }));
+}
+
+function dbDelete(key) {
+  return dbOpen().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction('kv', 'readwrite');
+    const req = tx.objectStore('kv').delete(key);
+    req.onsuccess = () => { db.close(); resolve(); };
+    req.onerror = () => { db.close(); reject(req.error); };
+  }));
+}
 
 // --- State ---
 let knownWords = new Map();     // word -> ISO timestamp
@@ -41,6 +86,11 @@ const dictFileInput = document.getElementById('dictFileInput');
 loadKnownWords();
 renderStats();
 updatePrimerUI();
+loadDictFromDB().then(() => {
+  renderStats();
+  renderDictUI();
+  reprime();
+});
 
 // --- Storage ---
 
@@ -207,7 +257,11 @@ async function loadDictionary(file) {
       if (!word) continue;
       const rank = extractRank(entry);
       if (rank != null && rank > 0) {
-        map.set(word, rank);
+        // Keep the best (lowest) rank for words with multiple readings
+        const existing = map.get(word);
+        if (existing == null || rank < existing) {
+          map.set(word, rank);
+        }
       }
     }
 
@@ -229,6 +283,15 @@ async function loadDictionary(file) {
     renderStats();
     renderDictUI();
     reprime();
+
+    // Persist to IndexedDB
+    dictBar.textContent = 'Saving to local database...';
+    await Promise.all([
+      dbPut('dictName', dictName),
+      dbPut('dictData', [...dictMap.entries()])
+    ]);
+    dictBar.textContent = `${dictName} (${dictMap.size.toLocaleString()} entries)`;
+
     alert(`Loaded ${dictMap.size.toLocaleString()} entries from "${dictName}".`);
   } catch (err) {
     console.error(err);
@@ -236,9 +299,23 @@ async function loadDictionary(file) {
   }
 }
 
+async function loadDictFromDB() {
+  try {
+    const [name, data] = await Promise.all([dbGet('dictName'), dbGet('dictData')]);
+    if (name && data && Array.isArray(data)) {
+      dictName = name;
+      dictMap = new Map(data);
+    }
+  } catch (err) {
+    console.warn('Failed to load dict from DB:', err);
+  }
+}
+
 function unloadDictionary() {
   dictMap = null;
   dictName = '';
+  dbDelete('dictName').catch(() => {});
+  dbDelete('dictData').catch(() => {});
   renderStats();
   renderDictUI();
   reprime();
