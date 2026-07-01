@@ -18,8 +18,26 @@
   --danger-hover: #b04444;
   --drop-bg: #f5f5f5;
   --added-bg: #f0f0f0;
+  --added-hover: #e8e8e8;
+  --btn-text: #fff;
   --radius: 12px;
   --radius-sm: 8px;
+}
+
+.dark {
+  --bg: #1a1a1a;
+  --surface: #222222;
+  --border: #333333;
+  --text: #e5e5e5;
+  --text-muted: #777777;
+  --primary: #6b7db3;
+  --primary-hover: #7d8fc4;
+  --danger: #c45353;
+  --danger-hover: #d46868;
+  --drop-bg: #2a2a2a;
+  --added-bg: #2a2a2a;
+  --added-hover: #333333;
+  --btn-text: #1a1a1a;
 }
 
 html {
@@ -32,6 +50,7 @@ body {
   color: var(--text);
   line-height: 1.6;
   min-height: 100vh;
+  transition: background 0.25s, color 0.25s;
 }
 
 .app {
@@ -51,7 +70,7 @@ body {
   padding: 2.5rem 1rem;
   text-align: center;
   cursor: pointer;
-  transition: border-color 0.2s, background 0.2s;
+  transition: border-color 0.2s, background 0.25s;
   background: var(--surface);
 }
 
@@ -99,6 +118,7 @@ body {
   padding: 0.6rem 0;
   margin-bottom: 1rem;
   border-bottom: 1px solid var(--border);
+  transition: border-color 0.25s;
 }
 
 .stat {
@@ -148,7 +168,7 @@ body {
 
 .btn-text-danger:hover {
   background: var(--danger);
-  color: #fff;
+  color: var(--btn-text);
 }
 
 .btn-undo-text {
@@ -165,12 +185,12 @@ body {
 
 .btn-undo-text:hover {
   background: var(--danger);
-  color: #fff;
+  color: var(--btn-text);
 }
 
 .btn-add {
   background: var(--primary);
-  color: #fff;
+  color: var(--btn-text);
   white-space: nowrap;
 }
 
@@ -184,6 +204,7 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   overflow: hidden;
+  transition: background 0.25s, border-color 0.25s;
 }
 
 .word-list {
@@ -197,7 +218,7 @@ body {
   gap: 1rem;
   padding: 0.75rem 1.25rem;
   border-bottom: 1px solid var(--border);
-  transition: background 0.2s;
+  transition: background 0.2s, border-color 0.25s;
 }
 
 .word-item:last-child {
@@ -213,7 +234,7 @@ body {
 }
 
 .word-item--added:hover {
-  background: #e8e8e8;
+  background: var(--added-hover);
 }
 
 .word-text {

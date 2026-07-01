@@ -82,6 +82,25 @@ const dictBar = document.getElementById('dictBar');
 const dictBtn = document.getElementById('dictBtn');
 const dictFileInput = document.getElementById('dictFileInput');
 
+// --- Theme ---
+
+function getTheme() {
+  return localStorage.getItem('primerTheme') || 'light';
+}
+
+function setTheme(theme) {
+  document.documentElement.classList.toggle('dark', theme === 'dark');
+  localStorage.setItem('primerTheme', theme);
+  themeBtn.textContent = theme === 'dark' ? 'Light' : 'Dark';
+}
+
+const themeBtn = document.getElementById('themeBtn');
+setTheme(getTheme());
+
+themeBtn.addEventListener('click', () => {
+  setTheme(getTheme() === 'dark' ? 'light' : 'dark');
+});
+
 // --- Init ---
 loadKnownWords();
 renderStats();
