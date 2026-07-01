@@ -32,6 +32,7 @@
       <section class="status-bar">
         <span class="stat">Known: <strong id="knownCount">0</strong></span>
         <span id="newStat" class="stat hidden">New: <strong id="newCount">0</strong></span>
+        <span id="dictPrimerStat" class="stat hidden"></span>
         <span class="bar-spacer"></span>
         <button id="openLibraryBtn" class="btn btn-text">Manage...</button>
       </section>
@@ -53,8 +54,11 @@
         <button id="libraryExportBtn" class="btn btn-text">Export</button>
         <button id="libraryClearBtn" class="btn btn-text btn-text-danger">Clear</button>
         <span class="bar-spacer"></span>
+        <span id="dictBar" class="stat hidden"></span>
+        <button id="dictBtn" class="btn btn-text">Load Dict...</button>
         <button id="backToPrimerBtn" class="btn btn-text">&larr; Back</button>
         <input type="file" id="libraryFileInput" accept=".txt" hidden>
+        <input type="file" id="dictFileInput" accept=".zip" hidden>
       </section>
 
       <div id="libraryList" class="word-list"></div>
@@ -65,6 +69,7 @@
 
   </div>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

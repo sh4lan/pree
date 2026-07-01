@@ -6,12 +6,17 @@ let knownSet = new Set();       // fast membership lookup
 let currentAllWords = [];       // all unique words from last file drop (for re-priming)
 let currentFreq = [];           // {word, count}[] for the current file, sorted by count desc
 
+// Dictionary state
+let dictMap = null;             // Map<word, rank> or null
+let dictName = '';              // display name of loaded dict
+
 // --- DOM refs (Primer) ---
 const dropZone = document.getElementById('dropZone');
 const fileInput = document.getElementById('fileInput');
 const knownCount = document.getElementById('knownCount');
 const newStat = document.getElementById('newStat');
 const newCount = document.getElementById('newCount');
+const dictPrimerStat = document.getElementById('dictPrimerStat');
 const wordSection = document.getElementById('wordSection');
 const wordList = document.getElementById('wordList');
 const emptyState = document.getElementById('emptyState');
@@ -28,6 +33,9 @@ const libraryImportBtn = document.getElementById('libraryImportBtn');
 const libraryExportBtn = document.getElementById('libraryExportBtn');
 const libraryClearBtn = document.getElementById('libraryClearBtn');
 const libraryFileInput = document.getElementById('libraryFileInput');
+const dictBar = document.getElementById('dictBar');
+const dictBtn = document.getElementById('dictBtn');
+const dictFileInput = document.getElementById('dictFileInput');
 
 // --- Init ---
 loadKnownWords();
@@ -165,6 +173,88 @@ function downloadTextFile(text, filename) {
   URL.revokeObjectURL(url);
 }
 
+// --- Dictionary ---
+
+function extractRank(entry) {
+  // Format 1: ["word", "freq", {value: N, displayValue: "N"}]
+  // Format 2: ["word", "freq", {reading: "…", frequency: {value: N, displayValue: "N"}}]
+  const data = entry[2];
+  if (!data) return null;
+  if (data.frequency) return data.frequency.value;
+  return data.value || null;
+}
+
+async function loadDictionary(file) {
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const zip = await JSZip.loadAsync(arrayBuffer);
+
+    const metaFile = zip.file('term_meta_bank_1.json');
+    if (!metaFile) {
+      alert('Dictionary zip must contain term_meta_bank_1.json');
+      return;
+    }
+
+    const text = await metaFile.async('string');
+    dictBar.textContent = 'Parsing dictionary...';
+
+    // Parse in chunks to avoid UI freeze on 24MB JSON
+    const entries = JSON.parse(text);
+    const map = new Map();
+
+    for (const entry of entries) {
+      const word = entry[0]?.trim();
+      if (!word) continue;
+      const rank = extractRank(entry);
+      if (rank != null && rank > 0) {
+        map.set(word, rank);
+      }
+    }
+
+    dictMap = map;
+
+    // Extract dict name from index.json
+    const indexFile = zip.file('index.json');
+    if (indexFile) {
+      try {
+        const index = JSON.parse(await indexFile.async('string'));
+        dictName = index.title || 'Dictionary';
+      } catch {
+        dictName = 'Dictionary';
+      }
+    } else {
+      dictName = 'Dictionary';
+    }
+
+    renderStats();
+    renderDictUI();
+    reprime();
+    alert(`Loaded ${dictMap.size.toLocaleString()} entries from "${dictName}".`);
+  } catch (err) {
+    console.error(err);
+    alert('Failed to load dictionary. Make sure the file is a valid ZIP with term_meta_bank_1.json.');
+  }
+}
+
+function unloadDictionary() {
+  dictMap = null;
+  dictName = '';
+  renderStats();
+  renderDictUI();
+  reprime();
+}
+
+function renderDictUI() {
+  if (dictMap) {
+    dictBar.textContent = `${dictName} (${dictMap.size.toLocaleString()} entries)`;
+    dictBar.classList.remove('hidden');
+    dictBtn.textContent = 'Remove Dict';
+  } else {
+    dictBar.classList.add('hidden');
+    dictBtn.textContent = 'Load Dict...';
+  }
+}
+
 // --- New Words Processing ---
 
 function processNewWordsFile(text) {
@@ -210,6 +300,11 @@ function filterAndRender() {
 
 // --- Rendering (Primer) ---
 
+function getDictRank(word) {
+  if (!dictMap) return null;
+  return dictMap.get(word) ?? null;
+}
+
 function renderWordList(entries) {
   wordList.innerHTML = '';
 
@@ -233,11 +328,25 @@ function renderWordList(entries) {
     textSpan.className = 'word-text';
     textSpan.textContent = word;
 
+    // Rank badge (from dictionary, if loaded)
+    let showRank = false;
+    let rankSpan = null;
+    if (dictMap) {
+      const rank = getDictRank(word);
+      if (rank != null) {
+        rankSpan = document.createElement('span');
+        rankSpan.className = 'word-rank';
+        rankSpan.textContent = `#${rank}`;
+        showRank = true;
+      }
+    }
+
     const freqBadge = document.createElement('span');
     freqBadge.className = 'word-freq';
     freqBadge.textContent = `×${count}`;
 
     label.appendChild(textSpan);
+    if (showRank) label.appendChild(rankSpan);
     label.appendChild(freqBadge);
 
     const actions = document.createElement('div');
@@ -280,6 +389,12 @@ function updateNewCount() {
 function renderStats() {
   knownCount.textContent = knownSet.size;
   libraryKnownCount.textContent = knownSet.size;
+  if (dictMap) {
+    dictPrimerStat.textContent = `Dict: ${dictName}`;
+    dictPrimerStat.classList.remove('hidden');
+  } else {
+    dictPrimerStat.classList.add('hidden');
+  }
 }
 
 function updatePrimerUI() {
@@ -304,6 +419,7 @@ function showPrimerView() {
 
 function showLibraryView() {
   renderLibrary();
+  renderDictUI();
   libraryView.classList.remove('hidden');
   primerView.classList.add('hidden');
 }
@@ -432,4 +548,21 @@ libraryExportBtn.addEventListener('click', exportKnownWords);
 libraryClearBtn.addEventListener('click', () => {
   clearAllKnown();
   renderLibrary();
+});
+
+// --- Event Handlers (Dictionary) ---
+
+dictBtn.addEventListener('click', () => {
+  if (dictMap) {
+    unloadDictionary();
+  } else {
+    dictFileInput.click();
+  }
+});
+
+dictFileInput.addEventListener('change', () => {
+  if (dictFileInput.files.length > 0) {
+    loadDictionary(dictFileInput.files[0]);
+    dictFileInput.value = '';
+  }
 });
