@@ -12,8 +12,6 @@ const dropStatus = document.getElementById('dropStatus');
 const knownCount = document.getElementById('knownCount');
 const newStat = document.getElementById('newStat');
 const newCount = document.getElementById('newCount');
-const knownFileBtn = document.getElementById('knownFileBtn');
-const knownFileInput = document.getElementById('knownFileInput');
 const wordSection = document.getElementById('wordSection');
 const wordList = document.getElementById('wordList');
 const emptyState = document.getElementById('emptyState');
@@ -24,7 +22,6 @@ const closeLibraryBtn = document.getElementById('closeLibraryBtn');
 const libraryOverlay = document.getElementById('libraryOverlay');
 const libraryList = document.getElementById('libraryList');
 const libraryEmpty = document.getElementById('libraryEmpty');
-const markAllBtn = document.getElementById('markAllBtn');
 const libraryImportBtn = document.getElementById('libraryImportBtn');
 const libraryExportBtn = document.getElementById('libraryExportBtn');
 const libraryClearBtn = document.getElementById('libraryClearBtn');
@@ -228,7 +225,6 @@ function renderWordList(words) {
         item.classList.remove('word-item--added');
         addBtn.className = 'btn btn-primary btn-add';
         addBtn.textContent = 'Add to Known';
-        renderLibrary();
       } else {
         // Add to known
         addKnownWord(word);
@@ -387,19 +383,6 @@ function handleFile(file) {
   reader.readAsText(file, 'UTF-8');
 }
 
-// --- Event Handlers (Status Bar) ---
-
-knownFileBtn.addEventListener('click', () => knownFileInput.click());
-
-knownFileInput.addEventListener('change', () => {
-  if (knownFileInput.files.length > 0) {
-    const reader = new FileReader();
-    reader.onload = (e) => importKnownWords(e.target.result);
-    reader.readAsText(knownFileInput.files[0], 'UTF-8');
-    knownFileInput.value = '';
-  }
-});
-
 // --- Event Handlers (Library Overlay) ---
 
 openLibraryBtn.addEventListener('click', openLibrary);
@@ -410,19 +393,6 @@ libraryOverlay.addEventListener('click', (e) => {
   if (e.target === libraryOverlay || e.target.classList.contains('overlay-backdrop')) {
     closeLibrary();
   }
-});
-
-markAllBtn.addEventListener('click', () => {
-  // Mark all currently displayed primer words as known
-  const items = wordList.querySelectorAll('.word-item:not(.word-item--added)');
-  for (const item of items) {
-    const word = item.dataset.word;
-    if (word) addKnownWord(word);
-  }
-  reprime();
-  renderLibrary();
-  updateNewCount();
-  showStatus(`Marked all remaining words as known.`, 'success');
 });
 
 libraryImportBtn.addEventListener('click', () => libraryFileInput.click());
