@@ -6,7 +6,7 @@ let knownSet = new Set();       // fast membership lookup
 let currentAllWords = [];       // all unique words from last file drop (for re-priming)
 let currentFreq = [];           // {word, count}[] for the current file, sorted by count desc
 
-// --- DOM refs ---
+// --- DOM refs (Primer) ---
 const dropZone = document.getElementById('dropZone');
 const fileInput = document.getElementById('fileInput');
 const knownCount = document.getElementById('knownCount');
@@ -15,13 +15,15 @@ const newCount = document.getElementById('newCount');
 const wordSection = document.getElementById('wordSection');
 const wordList = document.getElementById('wordList');
 const emptyState = document.getElementById('emptyState');
-
-// Library overlay
 const openLibraryBtn = document.getElementById('openLibraryBtn');
-const closeLibraryBtn = document.getElementById('closeLibraryBtn');
-const libraryOverlay = document.getElementById('libraryOverlay');
+
+// --- DOM refs (Library) ---
+const primerView = document.getElementById('primerView');
+const libraryView = document.getElementById('libraryView');
+const libraryKnownCount = document.getElementById('libraryKnownCount');
 const libraryList = document.getElementById('libraryList');
 const libraryEmpty = document.getElementById('libraryEmpty');
+const backToPrimerBtn = document.getElementById('backToPrimerBtn');
 const libraryImportBtn = document.getElementById('libraryImportBtn');
 const libraryExportBtn = document.getElementById('libraryExportBtn');
 const libraryClearBtn = document.getElementById('libraryClearBtn');
@@ -177,16 +179,13 @@ function processNewWordsFile(text) {
     return;
   }
 
-  // Build frequency map
   const freq = new Map();
   for (const w of words) {
     freq.set(w, (freq.get(w) || 0) + 1);
   }
 
-  // Store unique words for re-priming
   currentAllWords = [...freq.keys()];
 
-  // Sort by frequency desc, keeping only unknown words
   const entries = [...freq.entries()]
     .filter(([word]) => !knownSet.has(word))
     .sort((a, b) => b[1] - a[1])
@@ -198,7 +197,6 @@ function processNewWordsFile(text) {
 }
 
 function filterAndRender() {
-  // Re-filter currentAllWords through current known set, with frequency from currentFreq
   const freqMap = new Map(currentFreq.map(e => [e.word, e.count]));
   const entries = currentAllWords
     .filter(w => !knownSet.has(w))
@@ -246,14 +244,14 @@ function renderWordList(entries) {
     actions.className = 'word-actions';
 
     const addBtn = document.createElement('button');
-    addBtn.className = 'btn btn-primary btn-add';
+    addBtn.className = 'btn btn-add';
     addBtn.textContent = 'Add to Known';
 
     addBtn.addEventListener('click', () => {
       if (knownSet.has(word)) {
         removeKnownWord(word);
         item.classList.remove('word-item--added');
-        addBtn.className = 'btn btn-primary btn-add';
+        addBtn.className = 'btn btn-add';
         addBtn.textContent = 'Add to Known';
       } else {
         addKnownWord(word);
@@ -281,6 +279,7 @@ function updateNewCount() {
 
 function renderStats() {
   knownCount.textContent = knownSet.size;
+  libraryKnownCount.textContent = knownSet.size;
 }
 
 function updatePrimerUI() {
@@ -296,16 +295,23 @@ function updatePrimerUI() {
   }
 }
 
-// --- Library Overlay ---
+// --- View Switching ---
 
-function openLibrary() {
+function showPrimerView() {
+  primerView.classList.remove('hidden');
+  libraryView.classList.add('hidden');
+}
+
+function showLibraryView() {
   renderLibrary();
-  libraryOverlay.classList.remove('hidden');
+  libraryView.classList.remove('hidden');
+  primerView.classList.add('hidden');
 }
 
-function closeLibrary() {
-  libraryOverlay.classList.add('hidden');
-}
+openLibraryBtn.addEventListener('click', showLibraryView);
+backToPrimerBtn.addEventListener('click', showPrimerView);
+
+// --- Library ---
 
 function renderLibrary() {
   const entries = [...knownWords.entries()]
@@ -336,10 +342,8 @@ function renderLibrary() {
     dateSpan.textContent = formatDate(ts);
 
     const removeBtn = document.createElement('button');
-    removeBtn.className = 'btn btn-danger';
+    removeBtn.className = 'btn btn-text btn-text-danger';
     removeBtn.textContent = 'Remove';
-    removeBtn.style.fontSize = '0.75rem';
-    removeBtn.style.padding = '0.3rem 0.6rem';
     removeBtn.addEventListener('click', () => {
       removeKnownWord(word);
       renderLibrary();
@@ -410,17 +414,7 @@ function handleFile(file) {
   reader.readAsText(file, 'UTF-8');
 }
 
-// --- Event Handlers (Library Overlay) ---
-
-openLibraryBtn.addEventListener('click', openLibrary);
-
-closeLibraryBtn.addEventListener('click', closeLibrary);
-
-libraryOverlay.addEventListener('click', (e) => {
-  if (e.target === libraryOverlay || e.target.classList.contains('overlay-backdrop')) {
-    closeLibrary();
-  }
-});
+// --- Event Handlers (Library) ---
 
 libraryImportBtn.addEventListener('click', () => libraryFileInput.click());
 
@@ -437,5 +431,5 @@ libraryExportBtn.addEventListener('click', exportKnownWords);
 
 libraryClearBtn.addEventListener('click', () => {
   clearAllKnown();
-  closeLibrary();
+  renderLibrary();
 });
