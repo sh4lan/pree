@@ -52,7 +52,7 @@ let currentAllWords = [];       // all unique words from last paste (for re-prim
 let currentFreq = [];           // {word, count}[] from the current paste, sorted by count desc
 let originalText = '';          // raw text from the last paste (for sentence context)
 let sortMode = 'count';         // 'count' | 'rank'
-let hideKanaOnly = false;
+let hideKanaOnly = localStorage.getItem('primerHideKana') === 'true';
 
 // Dictionary state
 let dictMap = null;             // Map<word, rank> or null
@@ -112,6 +112,7 @@ themeBtn.addEventListener('click', () => {
 
 // --- Init ---
 loadKnownWords();
+hideKanaCheckbox.checked = hideKanaOnly;
 renderStats();
 updatePrimerUI();
 loadDictFromDB().then(() => {
@@ -790,6 +791,7 @@ sortSelect.addEventListener('change', () => {
 
 hideKanaCheckbox.addEventListener('change', () => {
   hideKanaOnly = hideKanaCheckbox.checked;
+  localStorage.setItem('primerHideKana', hideKanaOnly);
   if (currentAllWords.length > 0) applyFilters();
 });
 

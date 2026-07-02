@@ -54,7 +54,6 @@ body {
   color: var(--text);
   line-height: 1.6;
   min-height: 100vh;
-  transition: background 0.25s, color 0.25s;
 }
 
 .app {
@@ -83,7 +82,6 @@ body {
   resize: vertical;
   background: var(--surface);
   color: var(--text);
-  transition: border-color 0.2s, background 0.25s, color 0.25s;
 }
 
 .paste-area:focus {
@@ -94,7 +92,8 @@ body {
 .paste-buttons {
   display: flex;
   align-items: center;
-  margin-top: 0.5rem;
+  gap: 0.6rem;
+  margin-top: 0.6rem;
 }
 
 /* Controls Bar */
@@ -105,7 +104,6 @@ body {
   padding: 0.6rem 0;
   margin-bottom: 1rem;
   border-bottom: 1px solid var(--border);
-  transition: border-color 0.25s;
   flex-wrap: wrap;
 }
 
@@ -141,7 +139,6 @@ body {
   padding: 0.6rem 0;
   margin-bottom: 1rem;
   border-bottom: 1px solid var(--border);
-  transition: border-color 0.25s;
 }
 
 .stat {
@@ -237,7 +234,6 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   overflow: hidden;
-  transition: background 0.25s, border-color 0.25s;
 }
 
 .word-list {
@@ -251,7 +247,6 @@ body {
   gap: 1rem;
   padding: 0.75rem 1.25rem;
   border-bottom: 1px solid var(--border);
-  transition: background 0.2s, border-color 0.25s;
 }
 
 .word-item:last-child {
