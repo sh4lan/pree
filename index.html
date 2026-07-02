@@ -14,40 +14,30 @@
 
     <!-- Primer View -->
     <div id="primerView">
-      <section class="input-section">
-        <div id="dropZone" class="drop-zone">
-          <div class="drop-zone-content">
-            <svg class="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="17 8 12 3 7 8"/>
-              <line x1="12" y1="3" x2="12" y2="15"/>
-            </svg>
-            <p class="drop-text">Drop a <code>.txt</code> file here</p>
-            <p class="drop-hint">or click to browse</p>
-          </div>
-          <input type="file" id="fileInput" accept=".txt" hidden>
-        </div>
-      </section>
-
       <section class="paste-section">
-        <div class="paste-header">
-          <span class="stat">Or paste text below:</span>
-        </div>
-        <textarea id="pasteTextarea" class="paste-area" placeholder="Paste Japanese text here (book, article, etc.)..."></textarea>
+        <textarea id="pasteTextarea" class="paste-area" placeholder="Paste here..."></textarea>
         <div class="paste-buttons">
           <button id="extractBtn" class="btn btn-add">Extract Words</button>
-          <button id="downloadWordListBtn" class="btn btn-secondary hidden">Download Word List</button>
+          <button id="downloadBtn" class="btn btn-secondary hidden">Download</button>
           <span id="pasteStatus" class="stat" style="margin-left:0.5rem"></span>
         </div>
       </section>
 
-      <section class="status-bar">
-        <span class="stat">Known: <strong id="knownCount">0</strong></span>
-        <span id="newStat" class="stat hidden">New: <strong id="newCount">0</strong></span>
-        <span id="dictPrimerStat" class="stat hidden"></span>
+      <section class="controls-bar">
+        <label class="control-item">
+          Sort:
+          <select id="sortSelect">
+            <option value="count">By occurrences</option>
+            <option value="rank">By dictionary rank</option>
+          </select>
+        </label>
+        <label class="control-item">
+          <input type="checkbox" id="hideKanaCheckbox"> Hide kana-only
+        </label>
         <span class="bar-spacer"></span>
-        <button id="themeBtn" class="btn btn-text theme-btn">Dark</button>
+        <span class="stat">Known: <strong id="knownCount">0</strong></span>
         <button id="openLibraryBtn" class="btn btn-text">Manage...</button>
+        <button id="themeBtn" class="btn btn-text theme-btn">Dark</button>
       </section>
 
       <section id="wordSection" class="word-section hidden">
@@ -55,7 +45,7 @@
       </section>
 
       <section id="emptyState" class="empty-state hidden">
-        <p>No new words to show. Drop a file above to get started.</p>
+        <p>No new words to show. Paste some text above to get started.</p>
       </section>
     </div>
 
@@ -65,7 +55,6 @@
         <span class="stat">Known: <strong id="libraryKnownCount">0</strong></span>
         <button id="libraryImportBtn" class="btn btn-text">Import...</button>
         <button id="libraryExportBtn" class="btn btn-text">Export</button>
-        <button id="libraryClearBtn" class="btn btn-text btn-text-danger">Clear</button>
         <span class="bar-spacer"></span>
         <span id="dictBar" class="stat hidden"></span>
         <button id="dictBtn" class="btn btn-text">Load Dict...</button>
@@ -77,6 +66,52 @@
       <div id="libraryList" class="word-list"></div>
       <div id="libraryEmpty" class="empty-state">
         <p>No known words yet.</p>
+      </div>
+    </div>
+
+    <!-- Word Context Modal -->
+    <div id="contextModal" class="modal hidden">
+      <div class="modal-backdrop"></div>
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 id="contextWordTitle"></h3>
+          <button class="modal-close btn btn-text">&times;</button>
+        </div>
+        <div id="contextSentences" class="modal-body"></div>
+      </div>
+    </div>
+
+    <!-- Download Modal -->
+    <div id="downloadModal" class="modal hidden">
+      <div class="modal-backdrop"></div>
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Download Word List</h3>
+          <button class="modal-close btn btn-text">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="download-option" data-format="weighted">
+            <div class="download-option-info">
+              <strong>Weighted</strong>
+              <span class="stat">Each word repeated the amount of times it appears in the text. Sorted by frequency.</span>
+            </div>
+            <button class="btn btn-add download-btn">Download</button>
+          </div>
+          <div class="download-option" data-format="unique">
+            <div class="download-option-info">
+              <strong>Unique</strong>
+              <span class="stat">Each word written only once. Sorted by frequency.</span>
+            </div>
+            <button class="btn btn-add download-btn">Download</button>
+          </div>
+          <div class="download-option" data-format="csv">
+            <div class="download-option-info">
+              <strong>Word + Sentences (CSV)</strong>
+              <span class="stat">word, count, semicolon-joined sentences from the source text.</span>
+            </div>
+            <button class="btn btn-add download-btn">Download</button>
+          </div>
+        </div>
       </div>
     </div>
 

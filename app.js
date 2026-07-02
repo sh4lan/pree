@@ -48,28 +48,28 @@ function dbDelete(key) {
 // --- State ---
 let knownWords = new Map();     // word -> ISO timestamp
 let knownSet = new Set();       // fast membership lookup
-let currentAllWords = [];       // all unique words from last file drop (for re-priming)
-let currentFreq = [];           // {word, count}[] for the current file, sorted by count desc
+let currentAllWords = [];       // all unique words from last paste (for re-priming)
+let currentFreq = [];           // {word, count}[] from the current paste, sorted by count desc
+let originalText = '';          // raw text from the last paste (for sentence context)
+let sortMode = 'count';         // 'count' | 'rank'
+let hideKanaOnly = false;
 
 // Dictionary state
 let dictMap = null;             // Map<word, rank> or null
 let dictName = '';              // display name of loaded dict
 
 // --- DOM refs (Primer) ---
-const dropZone = document.getElementById('dropZone');
-const fileInput = document.getElementById('fileInput');
+const pasteTextarea = document.getElementById('pasteTextarea');
+const extractBtn = document.getElementById('extractBtn');
+const downloadBtn = document.getElementById('downloadBtn');
+const pasteStatus = document.getElementById('pasteStatus');
+const sortSelect = document.getElementById('sortSelect');
+const hideKanaCheckbox = document.getElementById('hideKanaCheckbox');
 const knownCount = document.getElementById('knownCount');
-const newStat = document.getElementById('newStat');
-const newCount = document.getElementById('newCount');
-const dictPrimerStat = document.getElementById('dictPrimerStat');
 const wordSection = document.getElementById('wordSection');
 const wordList = document.getElementById('wordList');
 const emptyState = document.getElementById('emptyState');
 const openLibraryBtn = document.getElementById('openLibraryBtn');
-const pasteTextarea = document.getElementById('pasteTextarea');
-const extractBtn = document.getElementById('extractBtn');
-const downloadWordListBtn = document.getElementById('downloadWordListBtn');
-const pasteStatus = document.getElementById('pasteStatus');
 
 // --- DOM refs (Library) ---
 const primerView = document.getElementById('primerView');
@@ -80,11 +80,16 @@ const libraryEmpty = document.getElementById('libraryEmpty');
 const backToPrimerBtn = document.getElementById('backToPrimerBtn');
 const libraryImportBtn = document.getElementById('libraryImportBtn');
 const libraryExportBtn = document.getElementById('libraryExportBtn');
-const libraryClearBtn = document.getElementById('libraryClearBtn');
 const libraryFileInput = document.getElementById('libraryFileInput');
 const dictBar = document.getElementById('dictBar');
 const dictBtn = document.getElementById('dictBtn');
 const dictFileInput = document.getElementById('dictFileInput');
+
+// --- DOM refs (Modals) ---
+const contextModal = document.getElementById('contextModal');
+const contextWordTitle = document.getElementById('contextWordTitle');
+const contextSentences = document.getElementById('contextSentences');
+const downloadModal = document.getElementById('downloadModal');
 
 // --- Theme ---
 
@@ -188,7 +193,7 @@ function clearAllKnown() {
 
 function reprime() {
   if (currentAllWords.length > 0) {
-    filterAndRender();
+    applyFilters();
   } else {
     updatePrimerUI();
   }
@@ -249,8 +254,6 @@ function downloadTextFile(text, filename) {
 // --- Dictionary ---
 
 function extractRank(entry) {
-  // Format 1: ["word", "freq", {value: N, displayValue: "N"}]
-  // Format 2: ["word", "freq", {reading: "…", frequency: {value: N, displayValue: "N"}}]
   const data = entry[2];
   if (!data) return null;
   if (data.frequency) return data.frequency.value;
@@ -271,7 +274,6 @@ async function loadDictionary(file) {
     const text = await metaFile.async('string');
     dictBar.textContent = 'Parsing dictionary...';
 
-    // Parse in chunks to avoid UI freeze on 24MB JSON
     const entries = JSON.parse(text);
     const map = new Map();
 
@@ -280,7 +282,6 @@ async function loadDictionary(file) {
       if (!word) continue;
       const rank = extractRank(entry);
       if (rank != null && rank > 0) {
-        // Keep the best (lowest) rank for words with multiple readings
         const existing = map.get(word);
         if (existing == null || rank < existing) {
           map.set(word, rank);
@@ -290,7 +291,6 @@ async function loadDictionary(file) {
 
     dictMap = map;
 
-    // Extract dict name from index.json
     const indexFile = zip.file('index.json');
     if (indexFile) {
       try {
@@ -307,7 +307,6 @@ async function loadDictionary(file) {
     renderDictUI();
     reprime();
 
-    // Persist to IndexedDB
     dictBar.textContent = 'Saving to local database...';
     await Promise.all([
       dbPut('dictName', dictName),
@@ -363,7 +362,6 @@ let _tokenizerLoading = false;
 async function getTokenizer() {
   if (_tokenizer) return _tokenizer;
   if (_tokenizerLoading) {
-    // Wait for current load
     while (_tokenizerLoading) await new Promise(r => setTimeout(r, 100));
     return _tokenizer;
   }
@@ -398,7 +396,6 @@ function extractWordsFromTokens(tokens) {
     const pos = token.pos;
     if (!CONTENT_POS.has(pos)) continue;
 
-    // Use basic form for verbs/adjectives, surface for others
     let word;
     if (pos === '動詞' || pos === '形容詞') {
       word = (token.basic_form || token.surface_form).trim();
@@ -411,11 +408,9 @@ function extractWordsFromTokens(tokens) {
     wordMap.set(word, (wordMap.get(word) || 0) + 1);
   }
 
-  const entries = [...wordMap.entries()]
+  return [...wordMap.entries()]
     .sort((a, b) => b[1] - a[1])
     .map(([word, count]) => ({ word, count }));
-
-  return entries;
 }
 
 async function extractFromPaste(text) {
@@ -425,6 +420,7 @@ async function extractFromPaste(text) {
     return;
   }
 
+  originalText = text;
   pasteStatus.textContent = 'Tokenizing...';
 
   try {
@@ -439,66 +435,162 @@ async function extractFromPaste(text) {
 
     currentAllWords = entries.map(e => e.word);
     currentFreq = entries;
-    renderWordList(entries);
-    updatePrimerUI();
+    applyFilters();
     pasteStatus.textContent = `Extracted ${entries.length} unique words.`;
-    downloadWordListBtn.classList.remove('hidden');
+    downloadBtn.classList.remove('hidden');
   } catch (err) {
     console.error(err);
     pasteStatus.textContent = 'Failed to tokenize text.';
   }
 }
 
-function downloadWordList() {
-  if (currentAllWords.length === 0) {
-    pasteStatus.textContent = 'No word list to download.';
-    return;
-  }
-  downloadTextFile(currentAllWords.sort().join('\n'), 'extracted-words.txt');
-  pasteStatus.textContent = 'Word list downloaded.';
+// --- Filtering & Sorting ---
+
+function isKanaOnly(word) {
+  return [...word].every(ch => {
+    const cp = ch.codePointAt(0);
+    return (cp >= 0x3040 && cp <= 0x309F) ||  // Hiragana
+           (cp >= 0x30A0 && cp <= 0x30FF) ||  // Katakana
+           cp === 0x30FC;                      // prolonged sound mark ー
+  });
 }
 
-// --- New Words Processing ---
+function applyFilters() {
+  let entries = currentFreq.slice();
 
-function processNewWordsFile(text) {
-  text = text.replace(/^﻿/, '');
-  const words = text.split(/\r?\n/)
-    .map(w => w.trim())
-    .filter(Boolean)
-    .map(w => w.normalize('NFC'));
+  // Filter out known
+  entries = entries.filter(e => !knownSet.has(e.word));
 
-  if (words.length === 0) {
-    alert('File is empty or contains no valid words.');
-    return;
+  // Filter kana-only
+  if (hideKanaOnly) {
+    entries = entries.filter(e => !isKanaOnly(e.word));
   }
 
-  const freq = new Map();
-  for (const w of words) {
-    freq.set(w, (freq.get(w) || 0) + 1);
+  // Sort
+  if (sortMode === 'rank' && dictMap) {
+    entries.sort((a, b) => {
+      const ra = dictMap.get(a.word);
+      const rb = dictMap.get(b.word);
+      if (ra != null && rb != null) return ra - rb;
+      if (ra != null) return -1;
+      if (rb != null) return 1;
+      return b.count - a.count;
+    });
+  } else {
+    entries.sort((a, b) => b.count - a.count);
   }
 
-  currentAllWords = [...freq.keys()];
-
-  const entries = [...freq.entries()]
-    .filter(([word]) => !knownSet.has(word))
-    .sort((a, b) => b[1] - a[1])
-    .map(([word, count]) => ({ word, count }));
-
-  currentFreq = entries;
   renderWordList(entries);
   updatePrimerUI();
 }
 
-function filterAndRender() {
-  const freqMap = new Map(currentFreq.map(e => [e.word, e.count]));
-  const entries = currentAllWords
-    .filter(w => !knownSet.has(w))
-    .map(word => ({ word, count: freqMap.get(word) || 1 }))
-    .sort((a, b) => b.count - a.count);
+// --- Sentence Context ---
 
-  currentFreq = entries;
-  renderWordList(entries);
-  updatePrimerUI();
+function findSentences(word) {
+  if (!originalText) return [];
+  const sentences = originalText.split(/。|！|？|\.|\!|\?|\n/).map(s => s.trim()).filter(Boolean);
+  const results = [];
+  for (const s of sentences) {
+    if (s.includes(word)) {
+      results.push(s);
+      if (results.length >= 5) break;
+    }
+  }
+  return results;
+}
+
+// --- Modals ---
+
+function openContextModal(word) {
+  const sentences = findSentences(word);
+  contextWordTitle.textContent = word;
+  contextSentences.innerHTML = '';
+
+  if (sentences.length === 0) {
+    contextSentences.innerHTML = '<p class="no-context-msg">No sentences found containing this word.</p>';
+  } else {
+    for (let i = 0; i < sentences.length; i++) {
+      const div = document.createElement('div');
+      div.className = 'sentence-item';
+      div.innerHTML = `<span class="sentence-marker">${i + 1}.</span> ${highlightWord(sentences[i], word)}`;
+      contextSentences.appendChild(div);
+    }
+  }
+
+  contextModal.classList.remove('hidden');
+}
+
+function closeContextModal() {
+  contextModal.classList.add('hidden');
+}
+
+function openDownloadModal() {
+  downloadModal.classList.remove('hidden');
+}
+
+function closeDownloadModal() {
+  downloadModal.classList.add('hidden');
+}
+
+function highlightWord(text, word) {
+  const idx = text.indexOf(word);
+  if (idx === -1) return escapeHtml(text);
+  return escapeHtml(text.slice(0, idx)) +
+    '<span class="sentence-highlight">' + escapeHtml(word) + '</span>' +
+    escapeHtml(text.slice(idx + word.length));
+}
+
+function escapeHtml(str) {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// --- Download ---
+
+function getVisibleEntries() {
+  // Use whatever is currently rendered (filtered + sorted)
+  return currentFreq
+    .filter(e => !knownSet.has(e.word))
+    .filter(e => hideKanaOnly ? !isKanaOnly(e.word) : true);
+}
+
+function downloadWeighted() {
+  const entries = getVisibleEntries();
+  const lines = [];
+  for (const { word, count } of entries) {
+    for (let i = 0; i < count; i++) lines.push(word);
+  }
+  downloadTextFile(lines.join('\n'), 'weighted-words.txt');
+  closeDownloadModal();
+}
+
+function downloadUnique() {
+  const entries = getVisibleEntries();
+  const lines = [];
+  for (const { word, count } of entries) {
+    for (let i = 0; i < count; i++) lines.push(word);
+  }
+  // Deduplicate but keep frequency order
+  const seen = new Set();
+  const deduped = [];
+  for (const w of lines) {
+    if (!seen.has(w)) { seen.add(w); deduped.push(w); }
+  }
+  downloadTextFile(deduped.join('\n'), 'unique-words.txt');
+  closeDownloadModal();
+}
+
+function downloadCSV() {
+  const entries = getVisibleEntries();
+  const rows = ['word,count,sentences'];
+  for (const { word, count } of entries) {
+    const sentences = findSentences(word);
+    const sentenceStr = sentences.join(';');
+    // Escape " as "" for CSV
+    const escaped = `"${word}","${count}","${sentenceStr.replace(/"/g, '""')}"`;
+    rows.push(escaped);
+  }
+  downloadTextFile(rows.join('\n'), 'words-with-sentences.csv');
+  closeDownloadModal();
 }
 
 // --- Rendering (Primer) ---
@@ -522,15 +614,18 @@ function renderWordList(entries) {
   for (const { word, count } of entries) {
     const item = document.createElement('div');
     item.className = 'word-item';
-    item.dataset.word = word;
+    if (knownSet.has(word)) item.classList.add('word-item--added');
+
+    // Word label with freq badge
+    const label = document.createElement('span');
+    label.className = 'word-label';
 
     const textSpan = document.createElement('span');
     textSpan.className = 'word-text';
     textSpan.textContent = word;
+    textSpan.title = 'Click to see context';
+    textSpan.addEventListener('click', () => openContextModal(word));
 
-    // ~ freq badge next to word
-    const label = document.createElement('span');
-    label.className = 'word-label';
     label.appendChild(textSpan);
 
     if (count > 0) {
@@ -540,7 +635,7 @@ function renderWordList(entries) {
       label.appendChild(freqBadge);
     }
 
-    // ~ rank badge on the right
+    // Right side: rank + actions
     const right = document.createElement('div');
     right.className = 'word-right';
 
@@ -556,8 +651,13 @@ function renderWordList(entries) {
     actions.className = 'word-actions';
 
     const addBtn = document.createElement('button');
-    addBtn.className = 'btn btn-add';
-    addBtn.textContent = 'Add to Known';
+    if (knownSet.has(word)) {
+      addBtn.className = 'btn btn-undo-text';
+      addBtn.textContent = 'Undo';
+    } else {
+      addBtn.className = 'btn btn-add';
+      addBtn.textContent = 'Add to Known';
+    }
 
     addBtn.addEventListener('click', () => {
       if (knownSet.has(word)) {
@@ -571,7 +671,6 @@ function renderWordList(entries) {
         addBtn.className = 'btn btn-undo-text';
         addBtn.textContent = 'Undo';
       }
-      updateNewCount();
     });
 
     actions.appendChild(addBtn);
@@ -581,24 +680,11 @@ function renderWordList(entries) {
     wordList.appendChild(item);
   }
 
-  updateNewCount();
-}
-
-function updateNewCount() {
-  const remaining = wordList.querySelectorAll('.word-item:not(.word-item--added)').length;
-  newCount.textContent = remaining;
-  newStat.classList.toggle('hidden', wordList.children.length === 0);
 }
 
 function renderStats() {
   knownCount.textContent = knownSet.size;
   libraryKnownCount.textContent = knownSet.size;
-  if (dictMap) {
-    dictPrimerStat.textContent = `Dict: ${dictName}`;
-    dictPrimerStat.classList.remove('hidden');
-  } else {
-    dictPrimerStat.classList.add('hidden');
-  }
 }
 
 function updatePrimerUI() {
@@ -608,9 +694,9 @@ function updatePrimerUI() {
 
   const emptyMsg = emptyState.querySelector('p');
   if (!hasWords && currentAllWords.length > 0) {
-    emptyMsg.textContent = 'All words from the file are already in your known list.';
+    emptyMsg.textContent = 'All words are already in your known list or excluded by the current filter.';
   } else {
-    emptyMsg.textContent = 'No new words to show. Drop a file above to get started.';
+    emptyMsg.textContent = 'No new words to show. Paste some text above to get started.';
   }
 }
 
@@ -690,49 +776,50 @@ function formatDate(date) {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-// --- Event Handlers (Drop Zone) ---
+// --- Event Handlers (Primer Controls) ---
 
-dropZone.addEventListener('click', () => fileInput.click());
-
-dropZone.addEventListener('dragover', (e) => {
-  e.preventDefault();
-  dropZone.classList.add('drag-over');
+extractBtn.addEventListener('click', () => {
+  extractFromPaste(pasteTextarea.value);
 });
 
-dropZone.addEventListener('dragleave', () => {
-  dropZone.classList.remove('drag-over');
+sortSelect.addEventListener('change', () => {
+  sortMode = sortSelect.value;
+  if (currentAllWords.length > 0) applyFilters();
 });
 
-dropZone.addEventListener('drop', (e) => {
-  e.preventDefault();
-  dropZone.classList.remove('drag-over');
-  if (e.dataTransfer.files.length > 0) {
-    handleFile(e.dataTransfer.files[0]);
+hideKanaCheckbox.addEventListener('change', () => {
+  hideKanaOnly = hideKanaCheckbox.checked;
+  if (currentAllWords.length > 0) applyFilters();
+});
+
+downloadBtn.addEventListener('click', openDownloadModal);
+
+// --- Modal Event Handlers ---
+
+// Close context modal
+contextModal.querySelector('.modal-backdrop').addEventListener('click', closeContextModal);
+contextModal.querySelector('.modal-close').addEventListener('click', closeContextModal);
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    if (!contextModal.classList.contains('hidden')) closeContextModal();
+    if (!downloadModal.classList.contains('hidden')) closeDownloadModal();
   }
 });
 
-fileInput.addEventListener('change', () => {
-  if (fileInput.files.length > 0) {
-    handleFile(fileInput.files[0]);
-    fileInput.value = '';
-  }
+// Close download modal
+downloadModal.querySelector('.modal-backdrop').addEventListener('click', closeDownloadModal);
+downloadModal.querySelector('.modal-close').addEventListener('click', closeDownloadModal);
+
+// Download buttons
+downloadModal.querySelectorAll('.download-option').forEach(opt => {
+  const btn = opt.querySelector('.download-btn');
+  btn.addEventListener('click', () => {
+    const format = opt.dataset.format;
+    if (format === 'weighted') downloadWeighted();
+    else if (format === 'unique') downloadUnique();
+    else if (format === 'csv') downloadCSV();
+  });
 });
-
-function handleFile(file) {
-  if (!file.name.endsWith('.txt')) {
-    alert('Please drop a .txt file.');
-    return;
-  }
-
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    processNewWordsFile(e.target.result);
-  };
-  reader.onerror = () => {
-    alert('Error reading file.');
-  };
-  reader.readAsText(file, 'UTF-8');
-}
 
 // --- Event Handlers (Library) ---
 
@@ -748,11 +835,6 @@ libraryFileInput.addEventListener('change', () => {
 });
 
 libraryExportBtn.addEventListener('click', exportKnownWords);
-
-libraryClearBtn.addEventListener('click', () => {
-  clearAllKnown();
-  renderLibrary();
-});
 
 // --- Event Handlers (Dictionary) ---
 
@@ -770,11 +852,3 @@ dictFileInput.addEventListener('change', () => {
     dictFileInput.value = '';
   }
 });
-
-// --- Event Handlers (Paste) ---
-
-extractBtn.addEventListener('click', () => {
-  extractFromPaste(pasteTextarea.value);
-});
-
-downloadWordListBtn.addEventListener('click', downloadWordList);
