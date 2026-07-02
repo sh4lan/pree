@@ -14,7 +14,7 @@
 
     <!-- Primer View -->
     <div id="primerView">
-      <section class="drop-section">
+      <section class="input-section">
         <div id="dropZone" class="drop-zone">
           <div class="drop-zone-content">
             <svg class="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -26,6 +26,18 @@
             <p class="drop-hint">or click to browse</p>
           </div>
           <input type="file" id="fileInput" accept=".txt" hidden>
+        </div>
+      </section>
+
+      <section class="paste-section">
+        <div class="paste-header">
+          <span class="stat">Or paste text below:</span>
+        </div>
+        <textarea id="pasteTextarea" class="paste-area" placeholder="Paste Japanese text here (book, article, etc.)..."></textarea>
+        <div class="paste-buttons">
+          <button id="extractBtn" class="btn btn-add">Extract Words</button>
+          <button id="downloadWordListBtn" class="btn btn-secondary hidden">Download Word List</button>
+          <span id="pasteStatus" class="stat" style="margin-left:0.5rem"></span>
         </div>
       </section>
 
@@ -71,6 +83,7 @@
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/build/kuromoji.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

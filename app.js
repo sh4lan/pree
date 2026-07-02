@@ -66,6 +66,10 @@ const wordSection = document.getElementById('wordSection');
 const wordList = document.getElementById('wordList');
 const emptyState = document.getElementById('emptyState');
 const openLibraryBtn = document.getElementById('openLibraryBtn');
+const pasteTextarea = document.getElementById('pasteTextarea');
+const extractBtn = document.getElementById('extractBtn');
+const downloadWordListBtn = document.getElementById('downloadWordListBtn');
+const pasteStatus = document.getElementById('pasteStatus');
 
 // --- DOM refs (Library) ---
 const primerView = document.getElementById('primerView');
@@ -349,6 +353,109 @@ function renderDictUI() {
     dictBar.classList.add('hidden');
     dictBtn.textContent = 'Load Dict...';
   }
+}
+
+// --- Paste & Extract ---
+
+let _tokenizer = null;
+let _tokenizerLoading = false;
+
+async function getTokenizer() {
+  if (_tokenizer) return _tokenizer;
+  if (_tokenizerLoading) {
+    // Wait for current load
+    while (_tokenizerLoading) await new Promise(r => setTimeout(r, 100));
+    return _tokenizer;
+  }
+  _tokenizerLoading = true;
+  pasteStatus.textContent = 'Loading Japanese tokenizer...';
+  return new Promise((resolve, reject) => {
+    kuromoji.builder({
+      dicPath: 'https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/dict/'
+    }).build((err, tokenizer) => {
+      _tokenizerLoading = false;
+      if (err) {
+        pasteStatus.textContent = '';
+        reject(err);
+        return;
+      }
+      _tokenizer = tokenizer;
+      pasteStatus.textContent = '';
+      resolve(tokenizer);
+    });
+  });
+}
+
+const CONTENT_POS = new Set([
+  '名詞', '動詞', '形容詞', '副詞', '連体詞',
+  '感動詞', '接頭詞'
+]);
+
+function extractWordsFromTokens(tokens) {
+  const wordMap = new Map();
+
+  for (const token of tokens) {
+    const pos = token.pos;
+    if (!CONTENT_POS.has(pos)) continue;
+
+    // Use basic form for verbs/adjectives, surface for others
+    let word;
+    if (pos === '動詞' || pos === '形容詞') {
+      word = (token.basic_form || token.surface_form).trim();
+    } else {
+      word = token.surface_form.trim();
+    }
+
+    if (!word || /^[^　-鿿豈-﫿a-zA-Z]+$/.test(word)) continue;
+
+    wordMap.set(word, (wordMap.get(word) || 0) + 1);
+  }
+
+  const entries = [...wordMap.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([word, count]) => ({ word, count }));
+
+  return entries;
+}
+
+async function extractFromPaste(text) {
+  text = text.replace(/^﻿/, '').trim();
+  if (!text) {
+    pasteStatus.textContent = 'No text to process.';
+    return;
+  }
+
+  pasteStatus.textContent = 'Tokenizing...';
+
+  try {
+    const tokenizer = await getTokenizer();
+    const tokens = tokenizer.tokenize(text);
+    const entries = extractWordsFromTokens(tokens);
+
+    if (entries.length === 0) {
+      pasteStatus.textContent = 'No words could be extracted.';
+      return;
+    }
+
+    currentAllWords = entries.map(e => e.word);
+    currentFreq = entries;
+    renderWordList(entries);
+    updatePrimerUI();
+    pasteStatus.textContent = `Extracted ${entries.length} unique words.`;
+    downloadWordListBtn.classList.remove('hidden');
+  } catch (err) {
+    console.error(err);
+    pasteStatus.textContent = 'Failed to tokenize text.';
+  }
+}
+
+function downloadWordList() {
+  if (currentAllWords.length === 0) {
+    pasteStatus.textContent = 'No word list to download.';
+    return;
+  }
+  downloadTextFile(currentAllWords.sort().join('\n'), 'extracted-words.txt');
+  pasteStatus.textContent = 'Word list downloaded.';
 }
 
 // --- New Words Processing ---
@@ -663,3 +770,11 @@ dictFileInput.addEventListener('change', () => {
     dictFileInput.value = '';
   }
 });
+
+// --- Event Handlers (Paste) ---
+
+extractBtn.addEventListener('click', () => {
+  extractFromPaste(pasteTextarea.value);
+});
+
+downloadWordListBtn.addEventListener('click', downloadWordList);
