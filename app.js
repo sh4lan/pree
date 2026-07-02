@@ -581,15 +581,16 @@ function downloadUnique() {
 
 function downloadCSV() {
   const entries = getVisibleEntries();
+  const BOM = '﻿';
   const rows = ['word,count,sentences'];
   for (const { word, count } of entries) {
     const sentences = findSentences(word);
-    const sentenceStr = sentences.join(';');
+    const sentenceStr = sentences.join(' | ');
     // Escape " as "" for CSV
     const escaped = `"${word}","${count}","${sentenceStr.replace(/"/g, '""')}"`;
     rows.push(escaped);
   }
-  downloadTextFile(rows.join('\n'), 'words-with-sentences.csv');
+  downloadTextFile(BOM + rows.join('\n'), 'words-with-sentences.csv');
   closeDownloadModal();
 }
 

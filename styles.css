@@ -38,6 +38,10 @@
   --added-bg: #2a2a2a;
   --added-hover: #333333;
   --btn-text: #1a1a1a;
+  --btn-secondary-bg: #333333;
+  --btn-secondary-border: #555555;
+  --btn-secondary-hover: #444444;
+  --surface-raised: #2e2e2e;
 }
 
 html {
@@ -188,6 +192,16 @@ body {
 .btn-text-danger:hover {
   background: var(--danger);
   color: var(--btn-text);
+}
+
+.btn-secondary {
+  background: var(--btn-secondary-bg, var(--bg));
+  color: var(--text);
+  border: 1px solid var(--btn-secondary-border, var(--border));
+}
+
+.btn-secondary:hover {
+  background: var(--btn-secondary-hover, var(--border));
 }
 
 .btn-undo-text {
