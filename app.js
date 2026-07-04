@@ -369,6 +369,17 @@ function renderDictUI() {
 let _tokenizer = null;
 let _tokenizerLoading = false;
 
+// Kuromoji's bundled path.join strips https:// to https:/ (POSIX normalize
+// treats // as empty segments). Patch loadArrayBuffer to restore the colon.
+var _origLoader = kuromoji.BrowserDictionaryLoader;
+if (_origLoader) {
+  var _origLoadArrayBuffer = _origLoader.prototype.loadArrayBuffer;
+  _origLoader.prototype.loadArrayBuffer = function (url, callback) {
+    url = url.replace(/^https:\/([^/])/, 'https://$1');
+    return _origLoadArrayBuffer.call(this, url, callback);
+  };
+}
+
 async function getTokenizer() {
   if (_tokenizer) return _tokenizer;
   if (_tokenizerLoading) {
@@ -379,7 +390,7 @@ async function getTokenizer() {
   _tokenizerLoading = true;
   pasteStatus.textContent = 'Downloading Japanese dictionary...';
 
-  const promise = new Promise((resolve, reject) => {
+  return new Promise((resolve, reject) => {
     kuromoji.builder({
       dicPath: 'https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/dict/'
     }).build((err, tokenizer) => {
@@ -394,15 +405,6 @@ async function getTokenizer() {
       resolve(tokenizer);
     });
   });
-
-  const timeout = new Promise((_, reject) => {
-    setTimeout(() => {
-      _tokenizerLoading = false;
-      reject(new Error('Timed out downloading dictionary. Check your internet or try again.'));
-    }, 15000);
-  });
-
-  return Promise.race([promise, timeout]);
 }
 
 const CONTENT_POS = new Set([
