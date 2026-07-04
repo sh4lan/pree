@@ -370,15 +370,14 @@ let _tokenizer = null;
 let _tokenizerLoading = false;
 
 // Kuromoji's bundled path.join strips https:// to https:/ (POSIX normalize
-// treats // as empty segments). Patch loadArrayBuffer to restore the colon.
-var _origLoader = kuromoji.BrowserDictionaryLoader;
-if (_origLoader) {
-  var _origLoadArrayBuffer = _origLoader.prototype.loadArrayBuffer;
-  _origLoader.prototype.loadArrayBuffer = function (url, callback) {
-    url = url.replace(/^https:\/([^/])/, 'https://$1');
-    return _origLoadArrayBuffer.call(this, url, callback);
-  };
-}
+// treats // as empty segments). Intercept XMLHttpRequest to fix the URL.
+var _origOpen = XMLHttpRequest.prototype.open;
+XMLHttpRequest.prototype.open = function (method, url) {
+  if (typeof url === 'string' && /^https:\/[a-z]/.test(url) && url.indexOf('kuromoji') !== -1) {
+    arguments[1] = url.replace(/^https:\//, 'https://');
+  }
+  return _origOpen.apply(this, arguments);
+};
 
 async function getTokenizer() {
   if (_tokenizer) return _tokenizer;
