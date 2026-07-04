@@ -373,11 +373,13 @@ async function getTokenizer() {
   if (_tokenizer) return _tokenizer;
   if (_tokenizerLoading) {
     while (_tokenizerLoading) await new Promise(r => setTimeout(r, 100));
+    if (!_tokenizer) throw new Error('Tokenizer failed to load.');
     return _tokenizer;
   }
   _tokenizerLoading = true;
-  pasteStatus.textContent = 'Loading Japanese tokenizer...';
-  return new Promise((resolve, reject) => {
+  pasteStatus.textContent = 'Downloading Japanese dictionary...';
+
+  const promise = new Promise((resolve, reject) => {
     kuromoji.builder({
       dicPath: 'https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/dict/'
     }).build((err, tokenizer) => {
@@ -392,6 +394,15 @@ async function getTokenizer() {
       resolve(tokenizer);
     });
   });
+
+  const timeout = new Promise((_, reject) => {
+    setTimeout(() => {
+      _tokenizerLoading = false;
+      reject(new Error('Timed out downloading dictionary. Check your internet or try again.'));
+    }, 15000);
+  });
+
+  return Promise.race([promise, timeout]);
 }
 
 const CONTENT_POS = new Set([
@@ -460,7 +471,7 @@ async function extractFromPaste(text) {
     downloadBtn.classList.remove('hidden');
   } catch (err) {
     console.error(err);
-    pasteStatus.textContent = 'Failed to tokenize text.';
+    pasteStatus.textContent = err.message || 'Failed to tokenize text.';
   }
 }
 
