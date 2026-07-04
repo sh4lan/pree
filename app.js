@@ -377,11 +377,11 @@ async function getTokenizer() {
     return _tokenizer;
   }
   _tokenizerLoading = true;
-  pasteStatus.textContent = 'Initializing tokenizer...';
+  pasteStatus.textContent = 'Downloading Japanese dictionary...';
 
-  return new Promise((resolve, reject) => {
+  const promise = new Promise((resolve, reject) => {
     kuromoji.builder({
-      dicPath: 'dict/'
+      dicPath: 'https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/dict/'
     }).build((err, tokenizer) => {
       _tokenizerLoading = false;
       if (err) {
@@ -394,6 +394,15 @@ async function getTokenizer() {
       resolve(tokenizer);
     });
   });
+
+  const timeout = new Promise((_, reject) => {
+    setTimeout(() => {
+      _tokenizerLoading = false;
+      reject(new Error('Timed out downloading dictionary. Check your internet or try again.'));
+    }, 15000);
+  });
+
+  return Promise.race([promise, timeout]);
 }
 
 const CONTENT_POS = new Set([
