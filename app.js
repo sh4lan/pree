@@ -390,30 +390,6 @@ const CONTENT_POS = new Set([
   '感動詞', '接頭詞'
 ]);
 
-function extractWordsFromTokens(tokens) {
-  const wordMap = new Map();
-
-  for (const token of tokens) {
-    const pos = token.pos;
-    if (!CONTENT_POS.has(pos)) continue;
-
-    let word;
-    if (pos === '動詞' || pos === '形容詞') {
-      word = (token.basic_form || token.surface_form).trim();
-    } else {
-      word = token.surface_form.trim();
-    }
-
-    if (!word || /^[^　-鿿豈-﫿a-zA-Z]+$/.test(word)) continue;
-
-    wordMap.set(word, (wordMap.get(word) || 0) + 1);
-  }
-
-  return [...wordMap.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .map(([word, count]) => ({ word, count }));
-}
-
 async function extractFromPaste(text) {
   text = text.replace(/^﻿/, '').trim();
   if (!text) {
@@ -426,8 +402,42 @@ async function extractFromPaste(text) {
 
   try {
     const tokenizer = await getTokenizer();
-    const tokens = tokenizer.tokenize(text);
-    const entries = extractWordsFromTokens(tokens);
+
+    // Chunk the text so the UI doesn't freeze — split by newlines so
+    // each chunk is a small batch of lines (~1 paragraph/screen of dialog)
+    const lines = text.split('\n');
+    const CHUNK_SIZE = 20;
+    const wordMap = new Map();
+    let totalTokens = 0;
+
+    for (let i = 0; i < lines.length; i += CHUNK_SIZE) {
+      const chunk = lines.slice(i, i + CHUNK_SIZE).join('\n');
+      const tokens = tokenizer.tokenize(chunk);
+      totalTokens += tokens.length;
+
+      for (const token of tokens) {
+        const pos = token.pos;
+        if (!CONTENT_POS.has(pos)) continue;
+
+        let word;
+        if (pos === '動詞' || pos === '形容詞') {
+          word = (token.basic_form || token.surface_form).trim();
+        } else {
+          word = token.surface_form.trim();
+        }
+
+        if (!word || /^[^　-鿿豈-﫿a-zA-Z]+$/.test(word)) continue;
+
+        wordMap.set(word, (wordMap.get(word) || 0) + 1);
+      }
+
+      // Yield to the event loop so the UI stays responsive
+      await new Promise(r => setTimeout(r, 0));
+    }
+
+    const entries = [...wordMap.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([word, count]) => ({ word, count }));
 
     if (entries.length === 0) {
       pasteStatus.textContent = 'No words could be extracted.';
@@ -437,7 +447,7 @@ async function extractFromPaste(text) {
     currentAllWords = entries.map(e => e.word);
     currentFreq = entries;
     applyFilters();
-    pasteStatus.textContent = `Extracted ${entries.length} unique words.`;
+    pasteStatus.textContent = `Extracted ${entries.length} unique words (${totalTokens} tokens).`;
     downloadBtn.classList.remove('hidden');
   } catch (err) {
     console.error(err);
