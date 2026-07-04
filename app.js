@@ -116,13 +116,7 @@ hideKanaCheckbox.checked = hideKanaOnly;
 renderStats();
 updatePrimerUI();
 
-var d = new Date(document.lastModified);
-var y = d.getFullYear();
-var m = String(d.getMonth() + 1).padStart(2, '0');
-var day = String(d.getDate()).padStart(2, '0');
-var h = String(d.getHours()).padStart(2, '0');
-var min = String(d.getMinutes()).padStart(2, '0');
-document.getElementById('version').textContent = 'v' + y + m + day + h + min;
+document.getElementById('version').textContent = 'v20260704';
 
 loadDictFromDB().then(() => {
   renderStats();
