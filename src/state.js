@@ -53,7 +53,9 @@ let _originalText = '';
 let _sortMode = 'count';
 let _hideKanaOnly = localStorage.getItem('primerHideKana') === 'true';
 let _noSpoiler = localStorage.getItem('primerNoSpoiler') === 'true';
+let _hideShortSents = localStorage.getItem('primerHideShortSents') !== 'false';
 let _currentSessionId = null;
+let _skipSessionSave = false;
 let _tokenizer = null;
 let _tokenizerLoading = false;
 
@@ -76,6 +78,11 @@ export function getNoSpoiler() { return _noSpoiler; }
 export function setNoSpoiler(v) { _noSpoiler = v; localStorage.setItem('primerNoSpoiler', v); }
 export function getCurrentSessionId() { return _currentSessionId; }
 export function setCurrentSessionId(v) { _currentSessionId = v; }
+export function getHideShortSents() { return _hideShortSents; }
+export function setHideShortSents(v) { _hideShortSents = v; localStorage.setItem('primerHideShortSents', v); }
+export function isShortSentence(s) { return [...s].length <= 3; }
+export function getSkipSessionSave() { return _skipSessionSave; }
+export function setSkipSessionSave(v) { _skipSessionSave = v; }
 
 export const CONTENT_POS = new Set([
   '名詞', '動詞', '形容詞', '副詞', '連体詞',
@@ -243,12 +250,12 @@ export function splitSentences(text) {
 }
 
 export async function saveSession(text, wordSet) {
-  const sessionId = Date.now().toString(36) + Math.random().toString(36).slice(2, 4);
+  if (_skipSessionSave) { _skipSessionSave = false; return null; }
+  const now = Date.now();
+  const sessionId = now.toString(36) + Math.random().toString(36).slice(2, 4);
   _currentSessionId = sessionId;
 
-  let sents = splitSentences(text);
-  // Filter out single-word sentences (often from word lists)
-  sents = sents.filter(s => s.split(/\s+/).length > 2 || (s.length > 15 && s.split(/\s+/).length > 1));
+  const sents = splitSentences(text);
 
   const wordIndices = {};
   for (const word of wordSet) {
@@ -259,21 +266,17 @@ export async function saveSession(text, wordSet) {
     if (indices.length) wordIndices[word] = indices;
   }
 
-  const data = { sentences: sents, wordIndices };
+  const data = { sentences: sents, wordIndices, ts: now };
   await dbPut('session:' + sessionId, data);
   // Keep a list of session IDs
   const list = await dbGet('sessionList') || [];
   list.push(sessionId);
-  if (list.length > 50) { // cap at 50 sessions
-    const removed = list.shift();
-    dbDelete('session:' + removed).catch(() => {});
-  }
   await dbPut('sessionList', list);
   return sessionId;
 }
 
 export async function findSentences(word) {
-  let results = [];
+  let results = new Map(); // text -> {text, ts} (keeps newest ts)
   const list = await dbGet('sessionList') || [];
 
   for (const sid of list) {
@@ -283,17 +286,46 @@ export async function findSentences(word) {
     const indices = data.wordIndices[word];
     if (!indices) continue;
     for (const idx of indices) {
-      if (idx < data.sentences.length) results.push(data.sentences[idx]);
+      if (idx >= data.sentences.length) continue;
+      const text = data.sentences[idx];
+      if (_hideShortSents && isShortSentence(text)) continue;
+      const existing = results.get(text);
+      if (!existing || data.ts > existing.ts) results.set(text, { text, ts: data.ts });
     }
   }
 
   // Also add from current text in memory
   if (_originalText && !(_noSpoiler && _currentSessionId)) {
+    const now = Date.now();
     const currentSents = splitSentences(_originalText);
     for (const s of currentSents) {
-      if (s.includes(word) && !results.includes(s)) results.push(s);
+      if (!s.includes(word)) continue;
+      if (_hideShortSents && isShortSentence(s)) continue;
+      const existing = results.get(s);
+      if (!existing || now > existing.ts) results.set(s, { text: s, ts: now });
     }
   }
 
-  return results;
+  return [...results.values()].sort((a, b) => b.ts - a.ts);
+}
+
+export async function getSessionList() {
+  const list = await dbGet('sessionList') || [];
+  const sessions = [];
+  for (const sid of list) {
+    const data = await dbGet('session:' + sid);
+    if (data) sessions.push({ id: sid, ...data });
+  }
+  return sessions.sort((a, b) => b.ts - a.ts);
+}
+
+export async function getSessionText(sid) {
+  const data = await dbGet('session:' + sid);
+  return data ? data.sentences.join('\n') : null;
+}
+
+export async function deleteSession(sid) {
+  await dbDelete('session:' + sid);
+  const list = await dbGet('sessionList') || [];
+  await dbPut('sessionList', list.filter(id => id !== sid));
 }

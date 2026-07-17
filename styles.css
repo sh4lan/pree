@@ -426,6 +426,12 @@ body {
   min-width: 0;
 }
 
+.context-image-checkboxes {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
 .context-image-col {
   flex: 0 0 360px;
   padding: 1rem 0 1rem 1rem;
@@ -467,6 +473,20 @@ body {
 
 .sentence-item:last-child {
   border-bottom: none;
+}
+
+.sentence-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.sentence-time {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-left: 0.5rem;
+  white-space: nowrap;
 }
 
 .sentence-marker {

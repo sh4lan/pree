@@ -81,14 +81,21 @@
       <div class="modal-content modal-content-wide">
         <div class="modal-header">
           <h2 id="contextWordTitle"></h2>
-          <span id="contextWordMeta" class="stat" style="flex:1;margin-left:0.5rem;"></span>
+          <span id="contextWordOcc" class="stat" style="margin-left:0.4rem;"></span>
+          <span class="bar-spacer"></span>
+          <span id="contextWordRank" class="stat"></span>
           <button class="modal-close btn btn-text">&times;</button>
         </div>
         <div class="context-layout">
           <div class="context-image-col">
-            <label class="control-item" style="font-size:0.8rem;margin-bottom:0.3rem;">
-              <input type="checkbox" id="noSpoilerCheckbox"> No spoiler
-            </label>
+            <div class="context-image-checkboxes">
+              <label class="control-item" style="font-size:0.8rem;">
+                <input type="checkbox" id="noSpoilerCheckbox"> No spoiler
+              </label>
+              <label class="control-item" style="font-size:0.8rem;">
+                <input type="checkbox" id="hideShortSentsCheckbox"> Hide short
+              </label>
+            </div>
             <img id="contextWordImage" class="context-image hidden" alt="">
             <input type="text" id="contextImageUrl" class="modal-image-input" placeholder="Image URL...">
           </div>

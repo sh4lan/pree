@@ -1,7 +1,8 @@
 import {
   getKnownWords, getKnownSet, getCurrentAllWords, getCurrentFreq, getOriginalText,
-  getHideKanaOnly, getNoSpoiler, setNoSpoiler,
+  getHideKanaOnly, getNoSpoiler, setNoSpoiler, getHideShortSents, setHideShortSents,
   setCurrentAllWords, setCurrentFreq, setOriginalText, setHideKanaOnly,
+  setSkipSessionSave,
   dbPut, dbGet, addKnownWord, removeKnownWord, getTokenizer,
   CONTENT_POS, isKanaOnly, escapeHtml, downloadTextFile, highlightWord,
   getWordImage, setWordImage, getWordImageFromDB,
@@ -37,6 +38,7 @@ const contextWordTitle = document.getElementById('contextWordTitle');
 const contextSentences = document.getElementById('contextSentences');
 const contextImageUrl = document.getElementById('contextImageUrl');
 const contextWordImage = document.getElementById('contextWordImage');
+const hideShortSentsCheckbox = document.getElementById('hideShortSentsCheckbox');
 const downloadModal = document.getElementById('downloadModal');
 
 // --- Render helpers ---
@@ -248,35 +250,32 @@ function renderWordList(entries) {
 // --- Context modal ---
 let _contextWord = '';
 
-const contextWordMeta = document.getElementById('contextWordMeta');
+const contextWordOcc = document.getElementById('contextWordOcc');
+const contextWordRank = document.getElementById('contextWordRank');
+
+function formatRelTime(ts) {
+  const diff = Date.now() - ts;
+  if (diff < 60000) return 'now';
+  if (diff < 3600000) return Math.floor(diff / 60000) + 'm';
+  if (diff < 86400000) return Math.floor(diff / 3600000) + 'h';
+  if (diff < 2592000000) return Math.floor(diff / 86400000) + 'd';
+  return Math.floor(diff / 2592000000) + 'mo';
+}
 
 export async function openContextModal(word) {
   _contextWord = word;
   contextWordTitle.textContent = word;
   contextSentences.innerHTML = '<p class="no-context-msg">Loading...</p>';
 
-  // Show rank and count
+  // Show occurrences (left) and rank (right)
   const freq = getCurrentFreq().find(e => e.word === word);
-  const rank = getDictRank(word);
-  let meta = '';
-  if (freq) meta += `×${freq.count}`;
-  if (rank) meta += (meta ? ' · ' : '') + `#${rank}`;
-  contextWordMeta.textContent = meta;
+  contextWordOcc.textContent = freq ? `×${freq.count}` : '';
+  const rankVal = getDictRank(word);
+  contextWordRank.textContent = rankVal ? `#${rankVal}` : '';
 
-  const sentences = await findSentences(word);
-  contextSentences.innerHTML = '';
-  if (!sentences.length) {
-    contextSentences.innerHTML = '<p class="no-context-msg">No sentences found containing this word.</p>';
-  } else {
-    for (const s of sentences) {
-      const d = document.createElement('div');
-      d.className = 'sentence-item';
-      d.innerHTML = highlightWord(s, word);
-      contextSentences.appendChild(d);
-    }
-  }
+  await renderSentences(word);
 
-  // Load image — try memory first, then DB
+  // Load image
   let saved = getWordImage(word);
   if (!saved) saved = await getWordImageFromDB(word);
   if (saved) {
@@ -288,6 +287,28 @@ export async function openContextModal(word) {
     contextWordImage.classList.add('hidden');
   }
   contextModal.classList.remove('hidden');
+}
+
+async function renderSentences(word) {
+  contextSentences.innerHTML = '<p class="no-context-msg">Loading...</p>';
+  const sentences = await findSentences(word);
+  contextSentences.innerHTML = '';
+  if (!sentences.length) {
+    contextSentences.innerHTML = '<p class="no-context-msg">No sentences found containing this word.</p>';
+    return;
+  }
+  for (const { text, ts } of sentences) {
+    const d = document.createElement('div');
+    d.className = 'sentence-item';
+    const textSpan = document.createElement('span');
+    textSpan.innerHTML = highlightWord(text, word);
+    d.appendChild(textSpan);
+    const timeSpan = document.createElement('span');
+    timeSpan.className = 'sentence-time';
+    timeSpan.textContent = formatRelTime(ts);
+    d.appendChild(timeSpan);
+    contextSentences.appendChild(d);
+  }
 }
 
 function closeContextModal() { contextModal.classList.add('hidden'); }
@@ -353,7 +374,16 @@ sortSelect.addEventListener('change', () => {
 
 hideKanaCheckbox.addEventListener('change', () => { setHideKanaOnly(hideKanaCheckbox.checked); localStorage.setItem('primerHideKana', getHideKanaOnly()); if (getCurrentAllWords().length) applyFilters(); });
 if (noSpoilerCheckbox) {
-  noSpoilerCheckbox.addEventListener('change', () => { setNoSpoiler(noSpoilerCheckbox.checked); });
+  noSpoilerCheckbox.addEventListener('change', () => {
+    setNoSpoiler(noSpoilerCheckbox.checked);
+    if (_contextWord) renderSentences(_contextWord);
+  });
+}
+if (hideShortSentsCheckbox) {
+  hideShortSentsCheckbox.addEventListener('change', () => {
+    setHideShortSents(hideShortSentsCheckbox.checked);
+    if (_contextWord) renderSentences(_contextWord);
+  });
 }
 downloadBtn.addEventListener('click', openDownloadModal);
 
@@ -414,8 +444,12 @@ document.addEventListener('keydown', (e) => {
 export function initPrimer() {
   hideKanaCheckbox.checked = getHideKanaOnly();
   if (noSpoilerCheckbox) noSpoilerCheckbox.checked = getNoSpoiler();
+  if (hideShortSentsCheckbox) hideShortSentsCheckbox.checked = getHideShortSents();
   updatePrimerUI();
   checkSavedText();
+
+  // Clear any stale extraction state
+  sessionStorage.removeItem('primerExtractionState');
 
   // Restore paste text from sessionStorage
   const saved = sessionStorage.getItem(PASTE_KEY);
@@ -425,4 +459,12 @@ export function initPrimer() {
   pasteTextarea.addEventListener('input', () => {
     sessionStorage.setItem(PASTE_KEY, pasteTextarea.value);
   });
+
+  // Auto-extract on restore from sessions
+  if (sessionStorage.getItem('primerAutoExtract') === 'true') {
+    sessionStorage.removeItem('primerAutoExtract');
+    setSkipSessionSave(true);
+    const text = pasteTextarea.value;
+    if (text.trim()) setTimeout(() => extractFromPaste(text), 100);
+  }
 }
