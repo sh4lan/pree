@@ -13,7 +13,7 @@ themeBtn.addEventListener('click', () => {
 });
 
 // --- Version ---
-document.getElementById('version').textContent = 'v20260704';
+document.getElementById('version').textContent = 'v20260717';
 
 // --- Init ---
 loadKnownWords();
