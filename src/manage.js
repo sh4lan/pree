@@ -11,7 +11,6 @@ const dictBar = document.getElementById('dictBar');
 const dictBtn = document.getElementById('dictBtn');
 const dictFileInput = document.getElementById('dictFileInput');
 const dictModal = document.getElementById('dictModal');
-const downloadDictBtn = document.getElementById('downloadDictBtn');
 const uploadDictBtn = document.getElementById('uploadDictBtn');
 const removeDictOption = document.getElementById('removeDictOption');
 const removeDictBtn = document.getElementById('removeDictBtn');
@@ -95,20 +94,6 @@ dictFileInput.addEventListener('change', () => {
     loadDictionary(dictFileInput.files[0]).then(() => { closeDictModal(); renderDictUI(); });
     dictFileInput.value = '';
   }
-});
-
-const DICT_URL = 'https://github.com/toasted-nutbread/yomichan-bccwj-frequency-dictionary/releases/download/1.0.1/BCCWJ-SUW.zip';
-downloadDictBtn.addEventListener('click', async () => {
-  downloadDictBtn.disabled = true; downloadDictBtn.textContent = 'Downloading...';
-  dictModalStatus.textContent = 'Downloading BCCWJ dictionary...';
-  try {
-    const r = await fetch(DICT_URL);
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const ok = await loadDictionary(new File([await r.blob()], 'BCCWJ-SUW.zip', { type: 'application/zip' }));
-    dictModalStatus.textContent = ok ? 'Loaded.' : 'Failed.';
-    if (ok) { renderDictUI(); setTimeout(closeDictModal, 1500); }
-  } catch (e) { dictModalStatus.textContent = 'Download failed.'; }
-  finally { downloadDictBtn.disabled = false; downloadDictBtn.textContent = 'Download'; }
 });
 
 // --- Import/Export ---

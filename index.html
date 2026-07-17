@@ -17,16 +17,15 @@
       <span class="stat">Known: <strong id="knownCount">0</strong></span>
       <span id="hasSavedBadge" class="stat hidden">· <span id="restoreBtn" class="clickable-stat">Restore last</span></span>
       <span class="bar-spacer"></span>
-      <button id="uploadFileBtn" class="btn btn-text">Upload...</button>
       <a href="library.html" class="btn btn-text">Manage...</a>
       <button id="themeBtn" class="btn btn-text theme-btn">Dark</button>
-      <input type="file" id="uploadFileInput" accept=".txt,.srt,.ssa,.ass" hidden>
     </section>
 
     <section class="paste-section">
       <textarea id="pasteTextarea" class="paste-area" placeholder="Paste here..."></textarea>
       <div class="paste-buttons">
         <button id="extractBtn" class="btn btn-add">Extract Words</button>
+        <button id="uploadBtn" class="btn btn-secondary">Upload...</button>
         <button id="downloadBtn" class="btn btn-secondary hidden">Download</button>
         <span id="pasteStatus" class="stat" style="margin-left:0.5rem"></span>
       </div>
@@ -53,6 +52,26 @@
     <section id="emptyState" class="empty-state hidden">
       <p>No new words to show. Paste some text above to get started.</p>
     </section>
+
+    <!-- Upload Modal -->
+    <div id="uploadModal" class="modal hidden">
+      <div class="modal-backdrop"></div>
+      <div class="modal-content" style="max-width:480px;">
+        <div class="modal-header">
+          <h3>Upload File</h3>
+          <button class="modal-close btn btn-text">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p class="stat" style="margin-bottom:0.75rem;">Accepted files: <code>.txt</code> <code>.srt</code> <code>.ssa</code> <code>.ass</code></p>
+          <div id="uploadDropZone" class="upload-drop-zone">
+            <p class="drop-text">Drop a file here</p>
+            <p class="drop-hint">or click to browse</p>
+          </div>
+          <input type="file" id="uploadModalInput" accept=".txt,.srt,.ssa,.ass" hidden>
+          <div id="uploadModalStatus" class="stat" style="margin-top:0.5rem;"></div>
+        </div>
+      </div>
+    </div>
 
     <!-- Word Context Modal -->
     <div id="contextModal" class="modal hidden">

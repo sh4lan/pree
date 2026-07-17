@@ -1,15 +1,18 @@
 import {
   getKnownWords, getKnownSet, getCurrentAllWords, getCurrentFreq, getOriginalText,
-  getSortMode, getHideKanaOnly, setCurrentAllWords, setCurrentFreq, setOriginalText,
-  setSortMode, setHideKanaOnly,
+  getHideKanaOnly, setCurrentAllWords, setCurrentFreq, setOriginalText,
+  setHideKanaOnly,
   dbPut, dbGet, addKnownWord, removeKnownWord, getTokenizer,
   CONTENT_POS, isKanaOnly, escapeHtml, downloadTextFile, highlightWord, findSentences
 } from './state.js';
 import { getDictRank, getDictMap, getDictName } from './dict.js';
 
+const PASTE_KEY = 'primerPasteText';
+
 // --- DOM refs ---
 const pasteTextarea = document.getElementById('pasteTextarea');
 const extractBtn = document.getElementById('extractBtn');
+const uploadBtn = document.getElementById('uploadBtn');
 const downloadBtn = document.getElementById('downloadBtn');
 const pasteStatus = document.getElementById('pasteStatus');
 const sortSelect = document.getElementById('sortSelect');
@@ -19,8 +22,12 @@ const wordList = document.getElementById('wordList');
 const emptyState = document.getElementById('emptyState');
 const restoreBtn = document.getElementById('restoreBtn');
 const hasSavedBadge = document.getElementById('hasSavedBadge');
-const uploadFileBtn = document.getElementById('uploadFileBtn');
-const uploadFileInput = document.getElementById('uploadFileInput');
+
+// Upload modal
+const uploadModal = document.getElementById('uploadModal');
+const uploadDropZone = document.getElementById('uploadDropZone');
+const uploadModalInput = document.getElementById('uploadModalInput');
+const uploadModalStatus = document.getElementById('uploadModalStatus');
 
 const contextModal = document.getElementById('contextModal');
 const contextWordTitle = document.getElementById('contextWordTitle');
@@ -132,11 +139,11 @@ function extractTextFromFile(file, text) {
 }
 
 // --- Filter ---
-export function applyFilters() {
+export function applyFilters(sortOverride) {
   let entries = getCurrentFreq().slice().filter(e => !getKnownSet().has(e.word));
   if (getHideKanaOnly()) entries = entries.filter(e => !isKanaOnly(e.word));
 
-  const mode = getSortMode();
+  const mode = sortOverride || sortSelect.value || 'count';
   if (mode === 'rank' && getDictMap()) {
     entries.sort((a, b) => {
       const ra = getDictRank(a.word), rb = getDictRank(b.word);
@@ -286,26 +293,52 @@ restoreBtn.addEventListener('click', async () => {
 });
 
 // --- Event handlers ---
-extractBtn.addEventListener('click', () => extractFromPaste(pasteTextarea.value));
-sortSelect.addEventListener('change', () => { setSortMode(sortSelect.value); if (getCurrentAllWords().length) applyFilters(); });
+extractBtn.addEventListener('click', () => {
+  const text = pasteTextarea.value;
+  sessionStorage.setItem(PASTE_KEY, text);
+  extractFromPaste(text);
+});
+
+sortSelect.addEventListener('change', () => {
+  applyFilters(sortSelect.value);
+});
+
 hideKanaCheckbox.addEventListener('change', () => { setHideKanaOnly(hideKanaCheckbox.checked); localStorage.setItem('primerHideKana', getHideKanaOnly()); if (getCurrentAllWords().length) applyFilters(); });
 downloadBtn.addEventListener('click', openDownloadModal);
 
-uploadFileBtn.addEventListener('click', () => uploadFileInput.click());
-uploadFileInput.addEventListener('change', () => {
-  if (!uploadFileInput.files.length) return;
-  const file = uploadFileInput.files[0];
+// Upload modal
+uploadBtn.addEventListener('click', () => { uploadModal.classList.remove('hidden'); uploadModalStatus.textContent = ''; });
+
+function closeUploadModal() { uploadModal.classList.add('hidden'); }
+uploadModal.querySelector('.modal-backdrop').addEventListener('click', closeUploadModal);
+uploadModal.querySelector('.modal-close').addEventListener('click', closeUploadModal);
+
+uploadDropZone.addEventListener('click', () => uploadModalInput.click());
+uploadDropZone.addEventListener('dragover', (e) => { e.preventDefault(); uploadDropZone.classList.add('drag-over'); });
+uploadDropZone.addEventListener('dragleave', () => { uploadDropZone.classList.remove('drag-over'); });
+uploadDropZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  uploadDropZone.classList.remove('drag-over');
+  if (e.dataTransfer.files.length > 0) handleUploadFile(e.dataTransfer.files[0]);
+});
+
+uploadModalInput.addEventListener('change', () => {
+  if (uploadModalInput.files.length > 0) { handleUploadFile(uploadModalInput.files[0]); uploadModalInput.value = ''; }
+});
+
+function handleUploadFile(file) {
   const reader = new FileReader();
   reader.onload = (e) => {
     const text = extractTextFromFile(file, e.target.result);
-    if (!text.trim()) { pasteStatus.textContent = 'No text could be extracted.'; return; }
+    if (!text.trim()) { uploadModalStatus.textContent = 'No text could be extracted.'; return; }
     pasteTextarea.value = text;
-    pasteStatus.textContent = `Loaded "${file.name}" (${text.split('\n').length} lines).`;
+    sessionStorage.setItem(PASTE_KEY, text);
+    uploadModalStatus.textContent = `Loaded "${file.name}" (${text.split('\n').length} lines).`;
+    closeUploadModal();
     extractFromPaste(text);
   };
   reader.readAsText(file, 'UTF-8');
-  uploadFileInput.value = '';
-});
+}
 
 contextModal.querySelector('.modal-backdrop').addEventListener('click', closeContextModal);
 contextModal.querySelector('.modal-close').addEventListener('click', closeContextModal);
@@ -329,7 +362,15 @@ document.addEventListener('keydown', (e) => {
 // --- Init ---
 export function initPrimer() {
   hideKanaCheckbox.checked = getHideKanaOnly();
-  sortSelect.value = getSortMode();
   updatePrimerUI();
   checkSavedText();
+
+  // Restore paste text from sessionStorage
+  const saved = sessionStorage.getItem(PASTE_KEY);
+  if (saved) pasteTextarea.value = saved;
+
+  // Auto-save paste text on input
+  pasteTextarea.addEventListener('input', () => {
+    sessionStorage.setItem(PASTE_KEY, pasteTextarea.value);
+  });
 }
