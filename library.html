@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Prexpose – Manage Words</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script>(function(){var t=localStorage.getItem('primerTheme');if(t==='dark')document.documentElement.classList.add('dark')})()</script>
+</head>
+<body>
+  <div class="app">
+    <section class="status-bar">
+      <span class="stat">Known: <strong id="libraryKnownCount">0</strong></span>
+      <button id="libraryImportBtn" class="btn btn-text">Import</button>
+      <button id="libraryExportBtn" class="btn btn-text">Export</button>
+      <span class="bar-spacer"></span>
+      <span id="dictBar" class="stat hidden"></span>
+      <button id="dictBtn" class="btn btn-text">Dictionary</button>
+      <a href="index.html" class="btn btn-text">&larr; Back</a>
+      <input type="file" id="libraryFileInput" accept=".txt" hidden>
+      <input type="file" id="dictFileInput" accept=".zip" hidden>
+    </section>
+
+    <div id="libraryList" class="word-list"></div>
+    <div id="libraryEmpty" class="empty-state">
+      <p>No known words yet.</p>
+    </div>
+  </div>
+
+  <!-- Dict Modal -->
+  <div id="dictModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content" style="max-width:420px;">
+      <div class="modal-header">
+        <h3>Dictionary</h3>
+        <button class="modal-close btn btn-text">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="download-option">
+          <div class="download-option-info">
+            <strong>Download BCCWJ</strong>
+            <span class="stat">Freely licensed frequency dictionary based on the Balanced Corpus of Contemporary Written Japanese.</span>
+          </div>
+          <button id="downloadDictBtn" class="btn btn-add">Download</button>
+        </div>
+        <div class="download-option">
+          <div class="download-option-info">
+            <strong>Upload Custom</strong>
+            <span class="stat">Load a Yomitan-compatible .zip dictionary from your device.</span>
+          </div>
+          <button id="uploadDictBtn" class="btn btn-add">Upload</button>
+        </div>
+        <div class="download-option hidden" id="removeDictOption">
+          <div class="download-option-info">
+            <strong>Remove Current Dict</strong>
+            <span class="stat">Unload the current frequency dictionary</span>
+          </div>
+          <button id="removeDictBtn" class="btn btn-text btn-text-danger">Remove</button>
+        </div>
+        <div id="dictModalStatus" class="stat" style="margin-top:0.5rem"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/build/kuromoji.js"></script>
+  <script type="module" src="src/manage.js"></script>
+</body>
+</html>

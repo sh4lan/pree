@@ -13,63 +13,46 @@
 </head>
 <body>
   <div class="app">
+    <section class="top-bar">
+      <span class="stat">Known: <strong id="knownCount">0</strong></span>
+      <span id="hasSavedBadge" class="stat hidden">· <span id="restoreBtn" class="clickable-stat">Restore last</span></span>
+      <span class="bar-spacer"></span>
+      <button id="uploadFileBtn" class="btn btn-text">Upload...</button>
+      <a href="library.html" class="btn btn-text">Manage...</a>
+      <button id="themeBtn" class="btn btn-text theme-btn">Dark</button>
+      <input type="file" id="uploadFileInput" accept=".txt,.srt,.ssa,.ass" hidden>
+    </section>
 
-    <!-- Primer View -->
-    <div id="primerView">
-      <section class="paste-section">
-        <textarea id="pasteTextarea" class="paste-area" placeholder="Paste here..."></textarea>
-        <div class="paste-buttons">
-          <button id="extractBtn" class="btn btn-add">Extract Words</button>
-          <button id="downloadBtn" class="btn btn-secondary hidden">Download</button>
-          <span id="pasteStatus" class="stat" style="margin-left:0.5rem"></span>
-        </div>
-      </section>
-
-      <section class="controls-bar">
-        <label class="control-item">
-          Sort:
-          <select id="sortSelect">
-            <option value="count">By occurrences</option>
-            <option value="rank">By dictionary rank</option>
-          </select>
-        </label>
-        <label class="control-item">
-          <input type="checkbox" id="hideKanaCheckbox"> Hide kana-only
-        </label>
-        <span class="bar-spacer"></span>
-        <span class="stat">Known: <strong id="knownCount">0</strong></span>
-        <button id="openLibraryBtn" class="btn btn-text">Manage...</button>
-        <button id="themeBtn" class="btn btn-text theme-btn">Dark</button>
-      </section>
-
-      <section id="wordSection" class="word-section hidden">
-        <div id="wordList" class="word-list"></div>
-      </section>
-
-      <section id="emptyState" class="empty-state hidden">
-        <p>No new words to show. Paste some text above to get started.</p>
-      </section>
-    </div>
-
-    <!-- Library View -->
-    <div id="libraryView" class="hidden">
-      <section class="status-bar">
-        <span class="stat">Known: <strong id="libraryKnownCount">0</strong></span>
-        <button id="libraryImportBtn" class="btn btn-text">Import</button>
-        <button id="libraryExportBtn" class="btn btn-text">Export</button>
-        <span class="bar-spacer"></span>
-        <span id="dictBar" class="stat hidden"></span>
-        <button id="dictBtn" class="btn btn-text">Load Dict...</button>
-        <button id="backToPrimerBtn" class="btn btn-text">&larr; Back</button>
-        <input type="file" id="libraryFileInput" accept=".txt" hidden>
-        <input type="file" id="dictFileInput" accept=".zip" hidden>
-      </section>
-
-      <div id="libraryList" class="word-list"></div>
-      <div id="libraryEmpty" class="empty-state">
-        <p>No known words yet.</p>
+    <section class="paste-section">
+      <textarea id="pasteTextarea" class="paste-area" placeholder="Paste here..."></textarea>
+      <div class="paste-buttons">
+        <button id="extractBtn" class="btn btn-add">Extract Words</button>
+        <button id="downloadBtn" class="btn btn-secondary hidden">Download</button>
+        <span id="pasteStatus" class="stat" style="margin-left:0.5rem"></span>
       </div>
-    </div>
+    </section>
+
+    <section class="controls-bar">
+      <label class="control-item">
+        Sort:
+        <select id="sortSelect">
+          <option value="count">By occurrences</option>
+          <option value="rank">By dictionary rank</option>
+          <option value="chrono">Chronological</option>
+        </select>
+      </label>
+      <label class="control-item">
+        <input type="checkbox" id="hideKanaCheckbox"> Hide kana-only
+      </label>
+    </section>
+
+    <section id="wordSection" class="word-section hidden">
+      <div id="wordList" class="word-list"></div>
+    </section>
+
+    <section id="emptyState" class="empty-state hidden">
+      <p>No new words to show. Paste some text above to get started.</p>
+    </section>
 
     <!-- Word Context Modal -->
     <div id="contextModal" class="modal hidden">
@@ -116,7 +99,6 @@
         </div>
       </div>
     </div>
-
   </div>
 
   <footer class="footer">
@@ -129,6 +111,6 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/build/kuromoji.js"></script>
-  <script src="app.js"></script>
+  <script type="module" src="src/app.js"></script>
 </body>
 </html>

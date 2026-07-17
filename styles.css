@@ -62,6 +62,26 @@ body {
   padding: 2rem 1rem;
 }
 
+/* Top Bar */
+.top-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0;
+  margin-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.clickable-stat {
+  cursor: pointer;
+  color: var(--primary);
+}
+
+.clickable-stat:hover {
+  text-decoration: underline;
+}
+
 /* Paste Section */
 .paste-section {
   margin-bottom: 1rem;
