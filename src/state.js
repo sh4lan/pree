@@ -52,8 +52,12 @@ let _currentFreq = [];
 let _originalText = '';
 let _sortMode = 'count';
 let _hideKanaOnly = localStorage.getItem('primerHideKana') === 'true';
+let _noSpoiler = localStorage.getItem('primerNoSpoiler') === 'true';
+let _currentSessionId = null;
 let _tokenizer = null;
 let _tokenizerLoading = false;
+
+let _wordImages = new Map(); // word -> url string
 
 export function getKnownWords() { return _knownWords; }
 export function getKnownSet() { return _knownSet; }
@@ -67,7 +71,11 @@ export function setCurrentAllWords(v) { _currentAllWords = v; }
 export function setCurrentFreq(v) { _currentFreq = v; }
 export function setOriginalText(v) { _originalText = v; }
 export function setSortMode(v) { _sortMode = v; }
-export function setHideKanaOnly(v) { _hideKanaOnly = v; };
+export function setHideKanaOnly(v) { _hideKanaOnly = v; }
+export function getNoSpoiler() { return _noSpoiler; }
+export function setNoSpoiler(v) { _noSpoiler = v; localStorage.setItem('primerNoSpoiler', v); }
+export function getCurrentSessionId() { return _currentSessionId; }
+export function setCurrentSessionId(v) { _currentSessionId = v; }
 
 export const CONTENT_POS = new Set([
   '名詞', '動詞', '形容詞', '副詞', '連体詞',
@@ -214,12 +222,78 @@ export function highlightWord(text, word) {
     escapeHtml(text.slice(idx + word.length));
 }
 
-export function findSentences(word) {
-  if (!_originalText) return [];
-  const sentences = _originalText.split(/。|！|？|\.|\!|\?|\n/).map(s => s.trim()).filter(Boolean);
-  const results = [];
-  for (const s of sentences) {
-    if (s.includes(word)) { results.push(s); if (results.length >= 5) break; }
+// --- Word image URLs ---
+export function getWordImage(word) { return _wordImages.get(word) || ''; }
+export function setWordImage(word, url) {
+  if (url) _wordImages.set(word, url);
+  else _wordImages.delete(word);
+  dbPut('img:' + word, url || '').catch(() => {});
+}
+export async function getWordImageFromDB(word) {
+  try {
+    const url = await dbGet('img:' + word);
+    if (url) { _wordImages.set(word, url); return url; }
+  } catch {}
+  return '';
+}
+
+// --- Session sentence storage ---
+export function splitSentences(text) {
+  return text.split(/。|！|？|\.\s|\!\s|\?\s|\n/).map(s => s.trim()).filter(s => s.length > 0);
+}
+
+export async function saveSession(text, wordSet) {
+  const sessionId = Date.now().toString(36) + Math.random().toString(36).slice(2, 4);
+  _currentSessionId = sessionId;
+
+  let sents = splitSentences(text);
+  // Filter out single-word sentences (often from word lists)
+  sents = sents.filter(s => s.split(/\s+/).length > 2 || (s.length > 15 && s.split(/\s+/).length > 1));
+
+  const wordIndices = {};
+  for (const word of wordSet) {
+    const indices = [];
+    for (let i = 0; i < sents.length; i++) {
+      if (sents[i].includes(word)) indices.push(i);
+    }
+    if (indices.length) wordIndices[word] = indices;
   }
+
+  const data = { sentences: sents, wordIndices };
+  await dbPut('session:' + sessionId, data);
+  // Keep a list of session IDs
+  const list = await dbGet('sessionList') || [];
+  list.push(sessionId);
+  if (list.length > 50) { // cap at 50 sessions
+    const removed = list.shift();
+    dbDelete('session:' + removed).catch(() => {});
+  }
+  await dbPut('sessionList', list);
+  return sessionId;
+}
+
+export async function findSentences(word) {
+  let results = [];
+  const list = await dbGet('sessionList') || [];
+
+  for (const sid of list) {
+    const data = await dbGet('session:' + sid);
+    if (!data) continue;
+    if (_noSpoiler && sid === _currentSessionId) continue;
+    const indices = data.wordIndices[word];
+    if (!indices) continue;
+    for (const idx of indices) {
+      if (idx < data.sentences.length) results.push(data.sentences[idx]);
+    }
+  }
+
+  // Also add from current text in memory
+  if (_originalText && !(_noSpoiler && _currentSessionId)) {
+    const currentSents = splitSentences(_originalText);
+    for (const s of currentSents) {
+      if (s.includes(word) && !results.includes(s)) results.push(s);
+    }
+  }
+
   return results;
 }

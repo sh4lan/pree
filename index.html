@@ -43,6 +43,8 @@
       <label class="control-item">
         <input type="checkbox" id="hideKanaCheckbox"> Hide kana-only
       </label>
+      <label class="control-item">
+      </label>
     </section>
 
     <section id="wordSection" class="word-section hidden">
@@ -76,12 +78,22 @@
     <!-- Word Context Modal -->
     <div id="contextModal" class="modal hidden">
       <div class="modal-backdrop"></div>
-      <div class="modal-content">
+      <div class="modal-content modal-content-wide">
         <div class="modal-header">
-          <h3 id="contextWordTitle"></h3>
+          <h2 id="contextWordTitle"></h2>
+          <span id="contextWordMeta" class="stat" style="flex:1;margin-left:0.5rem;"></span>
           <button class="modal-close btn btn-text">&times;</button>
         </div>
-        <div id="contextSentences" class="modal-body"></div>
+        <div class="context-layout">
+          <div class="context-image-col">
+            <label class="control-item" style="font-size:0.8rem;margin-bottom:0.3rem;">
+              <input type="checkbox" id="noSpoilerCheckbox"> No spoiler
+            </label>
+            <img id="contextWordImage" class="context-image hidden" alt="">
+            <input type="text" id="contextImageUrl" class="modal-image-input" placeholder="Image URL...">
+          </div>
+          <div id="contextSentences" class="modal-body"></div>
+        </div>
       </div>
     </div>
 

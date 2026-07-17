@@ -1,9 +1,11 @@
 import {
   getKnownWords, getKnownSet, getCurrentAllWords, getCurrentFreq, getOriginalText,
-  getHideKanaOnly, setCurrentAllWords, setCurrentFreq, setOriginalText,
-  setHideKanaOnly,
+  getHideKanaOnly, getNoSpoiler, setNoSpoiler,
+  setCurrentAllWords, setCurrentFreq, setOriginalText, setHideKanaOnly,
   dbPut, dbGet, addKnownWord, removeKnownWord, getTokenizer,
-  CONTENT_POS, isKanaOnly, escapeHtml, downloadTextFile, highlightWord, findSentences
+  CONTENT_POS, isKanaOnly, escapeHtml, downloadTextFile, highlightWord,
+  getWordImage, setWordImage, getWordImageFromDB,
+  saveSession, findSentences
 } from './state.js';
 import { getDictRank, getDictMap, getDictName } from './dict.js';
 
@@ -17,6 +19,7 @@ const downloadBtn = document.getElementById('downloadBtn');
 const pasteStatus = document.getElementById('pasteStatus');
 const sortSelect = document.getElementById('sortSelect');
 const hideKanaCheckbox = document.getElementById('hideKanaCheckbox');
+const noSpoilerCheckbox = document.getElementById('noSpoilerCheckbox');
 const wordSection = document.getElementById('wordSection');
 const wordList = document.getElementById('wordList');
 const emptyState = document.getElementById('emptyState');
@@ -32,6 +35,8 @@ const uploadModalStatus = document.getElementById('uploadModalStatus');
 const contextModal = document.getElementById('contextModal');
 const contextWordTitle = document.getElementById('contextWordTitle');
 const contextSentences = document.getElementById('contextSentences');
+const contextImageUrl = document.getElementById('contextImageUrl');
+const contextWordImage = document.getElementById('contextWordImage');
 const downloadModal = document.getElementById('downloadModal');
 
 // --- Render helpers ---
@@ -103,8 +108,11 @@ export async function extractFromPaste(text) {
     setCurrentAllWords(entries.map(e => e.word));
     setCurrentFreq(entries);
 
+    // Save session for sentence lookup (all extracted words, not just new)
+    saveSession(text, new Set(wordMap.keys())).catch(() => {});
+
     applyFilters();
-    pasteStatus.textContent = `Extracted ${entries.length} unique words (${totalTokens} tokens).`;
+    pasteStatus.textContent = `Extracted ${entries.length} unique words (${totalTokens} total).`;
     downloadBtn.classList.remove('hidden');
 
     dbPut('lastText', text).catch(() => {});
@@ -238,23 +246,63 @@ function renderWordList(entries) {
 }
 
 // --- Context modal ---
-export function openContextModal(word) {
-  const sentences = findSentences(word);
+let _contextWord = '';
+
+const contextWordMeta = document.getElementById('contextWordMeta');
+
+export async function openContextModal(word) {
+  _contextWord = word;
   contextWordTitle.textContent = word;
+  contextSentences.innerHTML = '<p class="no-context-msg">Loading...</p>';
+
+  // Show rank and count
+  const freq = getCurrentFreq().find(e => e.word === word);
+  const rank = getDictRank(word);
+  let meta = '';
+  if (freq) meta += `×${freq.count}`;
+  if (rank) meta += (meta ? ' · ' : '') + `#${rank}`;
+  contextWordMeta.textContent = meta;
+
+  const sentences = await findSentences(word);
   contextSentences.innerHTML = '';
   if (!sentences.length) {
     contextSentences.innerHTML = '<p class="no-context-msg">No sentences found containing this word.</p>';
   } else {
-    for (let i = 0; i < sentences.length; i++) {
+    for (const s of sentences) {
       const d = document.createElement('div');
       d.className = 'sentence-item';
-      d.innerHTML = `<span class="sentence-marker">${i + 1}.</span> ${highlightWord(sentences[i], word)}`;
+      d.innerHTML = highlightWord(s, word);
       contextSentences.appendChild(d);
     }
   }
+
+  // Load image — try memory first, then DB
+  let saved = getWordImage(word);
+  if (!saved) saved = await getWordImageFromDB(word);
+  if (saved) {
+    contextImageUrl.value = saved;
+    contextWordImage.src = saved;
+    contextWordImage.classList.remove('hidden');
+  } else {
+    contextImageUrl.value = '';
+    contextWordImage.classList.add('hidden');
+  }
   contextModal.classList.remove('hidden');
 }
+
 function closeContextModal() { contextModal.classList.add('hidden'); }
+
+// Auto-save image URL on blur
+contextImageUrl.addEventListener('blur', () => {
+  const url = contextImageUrl.value.trim();
+  setWordImage(_contextWord, url);
+  if (url) {
+    contextWordImage.src = url;
+    contextWordImage.classList.remove('hidden');
+  } else {
+    contextWordImage.classList.add('hidden');
+  }
+});
 
 // --- Download modal ---
 export function openDownloadModal() { downloadModal.classList.remove('hidden'); }
@@ -304,6 +352,9 @@ sortSelect.addEventListener('change', () => {
 });
 
 hideKanaCheckbox.addEventListener('change', () => { setHideKanaOnly(hideKanaCheckbox.checked); localStorage.setItem('primerHideKana', getHideKanaOnly()); if (getCurrentAllWords().length) applyFilters(); });
+if (noSpoilerCheckbox) {
+  noSpoilerCheckbox.addEventListener('change', () => { setNoSpoiler(noSpoilerCheckbox.checked); });
+}
 downloadBtn.addEventListener('click', openDownloadModal);
 
 // Upload modal
@@ -362,6 +413,7 @@ document.addEventListener('keydown', (e) => {
 // --- Init ---
 export function initPrimer() {
   hideKanaCheckbox.checked = getHideKanaOnly();
+  if (noSpoilerCheckbox) noSpoilerCheckbox.checked = getNoSpoiler();
   updatePrimerUI();
   checkSavedText();
 

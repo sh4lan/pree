@@ -376,6 +376,10 @@ body {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
 }
 
+.modal-content-wide {
+  max-width: 800px;
+}
+
 .modal-header {
   display: flex;
   align-items: center;
@@ -384,9 +388,9 @@ body {
   border-bottom: 1px solid var(--border);
 }
 
-.modal-header h3 {
-  font-size: 1rem;
-  font-weight: 600;
+.modal-header h2 {
+  font-size: 1.3rem;
+  font-weight: 700;
 }
 
 .modal-close {
@@ -404,6 +408,53 @@ body {
   padding: 1rem 1.25rem;
   overflow-y: auto;
   flex: 1;
+}
+
+/* Context modal two-column layout */
+.context-layout {
+  display: flex;
+  gap: 1rem;
+  min-height: 0;
+  flex: 1;
+}
+
+.context-layout .modal-body {
+  flex: 1;
+  padding: 1rem 1.25rem;
+  overflow-y: auto;
+  max-height: 60vh;
+  min-width: 0;
+}
+
+.context-image-col {
+  flex: 0 0 360px;
+  padding: 1rem 0 1rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.context-image {
+  width: 100%;
+  max-height: 400px;
+  object-fit: contain;
+  border-radius: var(--radius-sm);
+}
+
+.modal-image-input {
+  width: 100%;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 0.8rem;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.modal-image-input:focus {
+  outline: none;
+  border-color: var(--primary);
 }
 
 /* Sentence items */
