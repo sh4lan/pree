@@ -60,6 +60,7 @@ let _tokenizer = null;
 let _tokenizerLoading = false;
 
 let _wordImages = new Map(); // word -> url string
+let _varMap = new Map(); // canonical word -> Set of surface forms (for current text matching)
 
 export function getKnownWords() { return _knownWords; }
 export function getKnownSet() { return _knownSet; }
@@ -81,6 +82,8 @@ export function setCurrentSessionId(v) { _currentSessionId = v; }
 export function getHideShortSents() { return _hideShortSents; }
 export function setHideShortSents(v) { _hideShortSents = v; localStorage.setItem('primerHideShortSents', v); }
 export function isShortSentence(s) { return [...s].length <= 3; }
+export function getVarMap() { return _varMap; }
+export function setVarMap(v) { _varMap = v; }
 export function getSkipSessionSave() { return _skipSessionSave; }
 export function setSkipSessionSave(v) { _skipSessionSave = v; }
 
@@ -221,14 +224,6 @@ export function formatDate(date) {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-export function highlightWord(text, word) {
-  const idx = text.indexOf(word);
-  if (idx === -1) return escapeHtml(text);
-  return escapeHtml(text.slice(0, idx)) +
-    '<span class="sentence-highlight">' + escapeHtml(word) + '</span>' +
-    escapeHtml(text.slice(idx + word.length));
-}
-
 // --- Word image URLs ---
 export function getWordImage(word) { return _wordImages.get(word) || ''; }
 export function setWordImage(word, url) {
@@ -249,7 +244,7 @@ export function splitSentences(text) {
   return text.split(/。|！|？|\.\s|\!\s|\?\s|\n/).map(s => s.trim()).filter(s => s.length > 0);
 }
 
-export async function saveSession(text, wordSet) {
+export async function saveSession(text, wordMap, varMap) {
   if (_skipSessionSave) { _skipSessionSave = false; return null; }
   const now = Date.now();
   const sessionId = now.toString(36) + Math.random().toString(36).slice(2, 4);
@@ -258,10 +253,17 @@ export async function saveSession(text, wordSet) {
   const sents = splitSentences(text);
 
   const wordIndices = {};
-  for (const word of wordSet) {
+  for (const word of wordMap.keys()) {
     const indices = [];
+    const forms = [word];
+    // Also include surface form variants for flexible matching
+    if (varMap && varMap.has(word)) {
+      for (const sf of varMap.get(word)) forms.push(sf);
+    }
     for (let i = 0; i < sents.length; i++) {
-      if (sents[i].includes(word)) indices.push(i);
+      for (const f of forms) {
+        if (sents[i].includes(f)) { indices.push(i); break; }
+      }
     }
     if (indices.length) wordIndices[word] = indices;
   }
@@ -298,9 +300,14 @@ export async function findSentences(word) {
   if (_originalText && !(_noSpoiler && _currentSessionId)) {
     const now = Date.now();
     const currentSents = splitSentences(_originalText);
+    const forms = [word];
+    const vm = _varMap;
+    if (vm && vm.has(word)) for (const sf of vm.get(word)) forms.push(sf);
     for (const s of currentSents) {
-      if (!s.includes(word)) continue;
       if (_hideShortSents && isShortSentence(s)) continue;
+      let matched = false;
+      for (const f of forms) { if (s.includes(f)) { matched = true; break; } }
+      if (!matched) continue;
       const existing = results.get(s);
       if (!existing || now > existing.ts) results.set(s, { text: s, ts: now });
     }

@@ -2,9 +2,9 @@ import {
   getKnownWords, getKnownSet, getCurrentAllWords, getCurrentFreq, getOriginalText,
   getHideKanaOnly, getNoSpoiler, setNoSpoiler, getHideShortSents, setHideShortSents,
   setCurrentAllWords, setCurrentFreq, setOriginalText, setHideKanaOnly,
-  setSkipSessionSave,
+  setSkipSessionSave, setVarMap,
   dbPut, dbGet, addKnownWord, removeKnownWord, getTokenizer,
-  CONTENT_POS, isKanaOnly, escapeHtml, downloadTextFile, highlightWord,
+  CONTENT_POS, isKanaOnly, escapeHtml, downloadTextFile,
   getWordImage, setWordImage, getWordImageFromDB,
   saveSession, findSentences
 } from './state.js';
@@ -84,6 +84,7 @@ export async function extractFromPaste(text) {
     const tokenizer = await getTokenizer();
     const lines = text.split('\n');
     const wordMap = new Map();
+    const varMap = new Map();
     let totalTokens = 0;
 
     for (let i = 0; i < lines.length; i += 20) {
@@ -97,6 +98,9 @@ export async function extractFromPaste(text) {
           : t.surface_form.trim();
         if (!word || /^[^　-鿿豈-﫿a-zA-Z]+$/.test(word)) continue;
         wordMap.set(word, (wordMap.get(word) || 0) + 1);
+        const sf = t.surface_form.trim();
+        if (sf !== word && !varMap.has(word)) varMap.set(word, new Set());
+        if (sf !== word) varMap.get(word).add(sf);
       }
       await new Promise(r => setTimeout(r, 0));
     }
@@ -109,9 +113,10 @@ export async function extractFromPaste(text) {
 
     setCurrentAllWords(entries.map(e => e.word));
     setCurrentFreq(entries);
+    setVarMap(varMap);
 
     // Save session for sentence lookup (all extracted words, not just new)
-    saveSession(text, new Set(wordMap.keys())).catch(() => {});
+    saveSession(text, wordMap, varMap).catch(() => {});
 
     applyFilters();
     pasteStatus.textContent = `Extracted ${entries.length} unique words (${totalTokens} total).`;
@@ -301,7 +306,7 @@ async function renderSentences(word) {
     const d = document.createElement('div');
     d.className = 'sentence-item';
     const textSpan = document.createElement('span');
-    textSpan.innerHTML = highlightWord(text, word);
+    textSpan.textContent = text;
     d.appendChild(textSpan);
     const timeSpan = document.createElement('span');
     timeSpan.className = 'sentence-time';

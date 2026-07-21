@@ -489,17 +489,6 @@ body {
   white-space: nowrap;
 }
 
-.sentence-marker {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  margin-right: 0.5rem;
-}
-
-.sentence-highlight {
-  color: var(--primary);
-  font-weight: 500;
-}
-
 /* Download options */
 .download-option {
   display: flex;
